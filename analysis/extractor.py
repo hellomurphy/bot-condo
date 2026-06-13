@@ -156,7 +156,7 @@ def extract_listings_from_comment(post_text_redacted: str, comment_text_redacted
 
 
 def compute_move_in_cost(listing: dict) -> float | None:
-    if listing.get("move_in_cost_stated"):
+    if listing.get("move_in_cost_stated") is not None:
         return float(listing["move_in_cost_stated"])
     rent = listing.get("monthly_rent")
     deposit = listing.get("deposit_months")
