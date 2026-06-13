@@ -2,6 +2,7 @@
 import argparse
 import asyncio
 import json
+import subprocess
 import sys
 import os
 import random
@@ -376,7 +377,7 @@ def main():
             path = export_excel(rows)
             print(f"Excel saved: {path}")
             print(f"[phase] export_done path={path}")
-            os.system(f'open "{path}"')
+            subprocess.run(["open", path], check=False)
         else:
             print("No listings to export.")
             print("[phase] export_done path=none")
