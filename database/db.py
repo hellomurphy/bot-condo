@@ -235,12 +235,11 @@ def insert_post_comments(post_id: int, comments: list[str]):
 
 
 def get_comments_for_post(post_id: int) -> list[str]:
-    conn = get_connection()
-    rows = conn.execute(
-        "SELECT comment_text FROM post_comments WHERE post_ref=? ORDER BY id",
-        (post_id,)
-    ).fetchall()
-    conn.close()
+    with transaction() as conn:
+        rows = conn.execute(
+            "SELECT comment_text FROM post_comments WHERE post_ref=? ORDER BY id",
+            (post_id,)
+        ).fetchall()
     return [r["comment_text"] for r in rows]
 
 
@@ -266,11 +265,10 @@ def update_image_base64(image_id: int, base64_data: str, image_type: str):
 
 
 def get_images_for_post(post_id: int) -> list[sqlite3.Row]:
-    conn = get_connection()
-    rows = conn.execute(
-        "SELECT * FROM post_images WHERE post_ref=?", (post_id,)
-    ).fetchall()
-    conn.close()
+    with transaction() as conn:
+        rows = conn.execute(
+            "SELECT * FROM post_images WHERE post_ref=?", (post_id,)
+        ).fetchall()
     return rows
 
 
@@ -418,9 +416,9 @@ def get_unalerted_above_tier(min_tier_order: int) -> list[sqlite3.Row]:
 
 
 def cleanup_old_posts(days: int):
-    cutoff = f"datetime('now', '-{days} days')"
+    cutoff = f"-{int(days)} days"
     with transaction() as conn:
-        conn.execute(f"DELETE FROM listing_scores WHERE listing_id IN (SELECT id FROM listings WHERE post_ref IN (SELECT id FROM posts WHERE scraped_at < {cutoff}))")
-        conn.execute(f"DELETE FROM listings WHERE post_ref IN (SELECT id FROM posts WHERE scraped_at < {cutoff})")
-        conn.execute(f"DELETE FROM post_images WHERE post_ref IN (SELECT id FROM posts WHERE scraped_at < {cutoff})")
-        conn.execute(f"DELETE FROM posts WHERE scraped_at < {cutoff}")
+        conn.execute("DELETE FROM listing_scores WHERE listing_id IN (SELECT id FROM listings WHERE post_ref IN (SELECT id FROM posts WHERE scraped_at < datetime('now', ?)))", (cutoff,))
+        conn.execute("DELETE FROM listings WHERE post_ref IN (SELECT id FROM posts WHERE scraped_at < datetime('now', ?))", (cutoff,))
+        conn.execute("DELETE FROM post_images WHERE post_ref IN (SELECT id FROM posts WHERE scraped_at < datetime('now', ?))", (cutoff,))
+        conn.execute("DELETE FROM posts WHERE scraped_at < datetime('now', ?)", (cutoff,))
