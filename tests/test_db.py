@@ -2,9 +2,10 @@ import os
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
-ROOT_DIR = "/Users/murphy/Desktop/bot-condo"
+ROOT_DIR = str(Path(__file__).parents[1])
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 

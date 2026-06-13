@@ -7,11 +7,12 @@ import threading
 import time
 import unittest
 import asyncio
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 
-ROOT_DIR = "/Users/murphy/Desktop/bot-condo"
+ROOT_DIR = str(Path(__file__).parents[1])
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
