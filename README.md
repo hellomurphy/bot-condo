@@ -12,6 +12,7 @@ Facebook Groups
       ▼
  scraper/feed.py        Playwright scrolls the feed, extracts post text + images
       │                 classify_post_intent() pre-filters: rent listing vs. seeker vs. junk
+      │                 restricted/locked posts are intercepted before hitting the API
       ▼
 analysis/extractor.py   DeepSeek parses each promising post → structured JSON
       │                 (rent, size, location, amenities, contact, confidence)
@@ -19,7 +20,7 @@ analysis/extractor.py   DeepSeek parses each promising post → structured JSON
 rules/scoring.py        Hard filters (budget, size, washer…) + weighted score → tier
       │
       ▼
-database/db.py          SQLite — deduplicates by content hash, stores all listings
+database/db.py          SQLite — dual-gate dedup (post_id + content hash), stores all listings
       │
       ▼
 Web UI / Excel export   Browse results in browser, or download .xlsx
@@ -42,7 +43,7 @@ Web UI / Excel export   Browse results in browser, or download .xlsx
 | Layer | Tools |
 |---|---|
 | Browser automation | Playwright (async) |
-| AI extraction | DeepSeek API (`deepseek-chat`) |
+| AI extraction | DeepSeek API (`deepseek-v4-flash`) |
 | Optional vision | OpenAI `gpt-4o-mini` (floor plan analysis) |
 | Storage | SQLite via `aiosqlite` |
 | Web UI | FastAPI + Jinja2 |
@@ -130,7 +131,7 @@ Configure via `.env` or environment variables. Results are saved to `data/condo.
 | `MAX_POSTS_PER_RUN` | `150` | Post cap per run |
 | `HEADLESS` | `false` | Run browser in background |
 | `ENABLE_VISION` | `false` | Analyze floor plan images with GPT-4o |
-| `DEEPSEEK_MODEL` | `deepseek-chat` | DeepSeek model ID |
+| `DEEPSEEK_MODEL` | `deepseek-v4-flash` | DeepSeek model ID |
 | `ALERT_MIN_TIER` | `shortlist` | Minimum tier to trigger LINE alert |
 | `DATA_RETENTION_DAYS` | `30` | Auto-delete old listings after N days |
 
@@ -174,4 +175,4 @@ bot-condo/
 
 - The bot reads **public Facebook group posts** only — it does not interact with or modify any content.
 - Session cookies are stored locally in `user_data/` and are excluded from version control.
-- DeepSeek API costs roughly **< 0.01 THB per post** analyzed.
+- DeepSeek API costs roughly **< 0.005 THB per post** analyzed ($0.14 / 1M input tokens for deepseek-v4-flash).
