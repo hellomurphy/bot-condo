@@ -1,0 +1,969 @@
+{% extends "base.html" %}
+{% block title %}Condo Radar — Scraper{% endblock %}
+
+{% block head %}
+<style>
+  /* ── Activity card ── */
+  .activity-card {
+    margin-top: 0;
+    padding: 14px 16px;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, rgba(16,185,129,.07), rgba(59,130,246,.04));
+    border: 1px solid rgba(16,185,129,.14);
+    margin-bottom: 12px;
+  }
+  .activity-label {
+    font-size: .62rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .activity-label .live-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent-glow);
+  }
+  .activity-main {
+    font-size: .92rem;
+    font-weight: 600;
+    line-height: 1.45;
+    color: var(--text);
+  }
+  .activity-sub {
+    margin-top: 5px;
+    font-size: .76rem;
+    color: var(--muted2);
+    line-height: 1.5;
+  }
+
+  /* ── Stats grid ── */
+  .activity-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 12px;
+  }
+  .activity-stat {
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: rgba(0,0,0,.35);
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+  .activity-stat::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-hi), transparent);
+  }
+  .activity-stat span {
+    font-size: .62rem;
+    color: var(--muted);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .activity-stat strong {
+    display: block;
+    font-size: 1rem;
+    margin-top: 3px;
+    color: var(--text);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Section separator labels ── */
+  .section-label {
+    font-size: .62rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── Idle placeholder ── */
+  #idle-placeholder {
+    text-align: center;
+    padding: 60px 24px;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    margin-top: 14px;
+  }
+  .idle-icon {
+    font-size: 2.2rem;
+    margin-bottom: 12px;
+    opacity: .35;
+  }
+  .idle-title {
+    font-size: .88rem;
+    font-weight: 600;
+    color: var(--muted2);
+    margin-bottom: 4px;
+  }
+  .idle-sub {
+    font-size: .75rem;
+    color: var(--muted);
+  }
+
+  /* ── URL row ── */
+  .url-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .url-row input { flex: 1; margin: 0; }
+  .icon-btn {
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    width: 34px;
+    height: 36px;
+    cursor: pointer;
+    font-size: .85rem;
+    color: var(--muted);
+    line-height: 1;
+    transition: border-color .15s, color .15s, background .15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .icon-btn:hover {
+    border-color: var(--border-hi);
+    color: var(--text);
+    background: var(--surface2);
+  }
+
+  /* ── Results button glowing ── */
+  #results-btn {
+    background: rgba(245,158,11,.1);
+    color: var(--gold);
+    border: 1px solid rgba(245,158,11,.3);
+    box-shadow: 0 0 14px var(--gold-glow);
+  }
+  #results-btn:hover {
+    background: rgba(245,158,11,.16);
+    text-decoration: none;
+  }
+
+  /* ── Animate stats numbers ── */
+  @keyframes count-pop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.15); color: var(--accent); }
+    100% { transform: scale(1); }
+  }
+  .stat-pop { animation: count-pop .3s ease; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="two-col">
+
+  <!-- ── LEFT: Form ── -->
+  <div class="col-left">
+    <div id="form-section" style="display:flex;flex-direction:column;height:100%;padding-top:14px">
+      <form id="scrape-form" method="POST" action="/start" novalidate
+            style="display:flex;flex-direction:column;height:100%;min-height:0">
+
+        <!-- scrollable cards area -->
+        <div style="flex:1;overflow-y:auto;min-height:0;padding-right:2px;scrollbar-width:thin;scrollbar-color:var(--surface2) transparent">
+
+          <!-- Post URL checker -->
+          <div class="card" id="post-check-card">
+            <div class="section-label">ตรวจสอบ Post</div>
+            <div class="field" style="margin-bottom:8px">
+              <label>Facebook Post URL</label>
+              <input type="text" id="post-check-url"
+                     placeholder="https://www.facebook.com/groups/.../posts/..."/>
+            </div>
+            <button type="button" class="btn btn-outline" id="post-check-btn"
+                    style="font-size:.85rem;padding:9px 14px">
+              ตรวจสอบ
+            </button>
+            <div id="post-check-result" class="hidden"
+                 style="margin-top:10px;font-size:.83rem;line-height:1.6;
+                        padding:10px 12px;border-radius:var(--radius-sm);
+                        background:rgba(0,0,0,.3);border:1px solid var(--border)">
+            </div>
+          </div>
+
+          <!-- FB Groups -->
+          <div class="card">
+            <div class="section-label">FB Groups</div>
+            <div id="url-list" style="display:flex;flex-direction:column;gap:7px;margin-bottom:10px"></div>
+            <button type="button" class="btn btn-outline" id="add-url-btn"
+                    style="font-size:.8rem;padding:8px 14px;color:var(--muted2)">
+              + เพิ่ม Group URL
+            </button>
+          </div>
+
+          <!-- Budget & Conditions -->
+          <div class="card">
+            <div class="section-label">งบประมาณ</div>
+            <div class="grid-2">
+              <div class="field">
+                <label>เป้าหมาย ฿/เดือน</label>
+                <input type="number" name="TARGET_BUDGET" value="{{ defaults.TARGET_BUDGET }}" min="0"/>
+              </div>
+              <div class="field">
+                <label>สูงสุด ฿/เดือน</label>
+                <input type="number" name="MAX_BUDGET" value="{{ defaults.MAX_BUDGET }}" min="0"/>
+              </div>
+            </div>
+            <div class="field" style="margin-bottom:0">
+              <label>ค่าใช้จ่ายแรกเข้าสูงสุด ฿ <span style="color:var(--muted);font-size:.7rem">(ไม่บังคับ)</span></label>
+              <input type="number" name="MAX_MOVE_IN_COST" value="{{ defaults.MAX_MOVE_IN_COST or '' }}" min="0" placeholder="ไม่กำหนด"/>
+            </div>
+          </div>
+
+          <!-- Conditions -->
+          <div class="card">
+            <div class="section-label">เงื่อนไขบังคับ</div>
+            <div class="field">
+              <label>ขนาดห้องต่ำสุด (ตร.ม.)</label>
+              <input type="number" name="MIN_SIZE_SQM" value="{{ defaults.MIN_SIZE_SQM }}" min="0" step="0.5"/>
+            </div>
+            <div class="divider"></div>
+            <div class="toggle-row">
+              <div>
+                <div class="toggle-label">เครื่องซักผ้า</div>
+                <div class="toggle-sub">ต้องมีเครื่องซักผ้าในห้อง</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" name="MUST_HAVE_WASHER" value="true" {% if defaults.MUST_HAVE_WASHER %}checked{% endif %}/>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="toggle-row" style="margin-bottom:0">
+              <div>
+                <div class="toggle-label">ที่จอดรถ</div>
+                <div class="toggle-sub">ต้องมีที่จอดรถรวมอยู่ด้วย</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" name="NEED_PARKING" value="true" {% if defaults.NEED_PARKING %}checked{% endif %}/>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Scrape settings -->
+          <div class="card">
+            <div class="section-label">การ Scrape</div>
+            <div class="grid-2">
+              <div class="field">
+                <label>รอบ Scroll สูงสุด</label>
+                <input type="number" name="MAX_SCROLL_ROUNDS" value="{{ defaults.MAX_SCROLL_ROUNDS }}" min="1" max="50"/>
+              </div>
+              <div class="field" style="margin-bottom:0">
+                <label>จำนวน Post สูงสุด</label>
+                <input type="number" name="MAX_POSTS_PER_RUN" value="{{ defaults.MAX_POSTS_PER_RUN }}" min="1"/>
+              </div>
+            </div>
+            <div class="divider"></div>
+            <div class="toggle-row" style="margin-bottom:0">
+              <div>
+                <div class="toggle-label">Loop อัตโนมัติ</div>
+                <div class="toggle-sub">วนซ้ำทุกๆ X นาทีโดยอัตโนมัติ</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="loop-toggle" onchange="toggleLoopInput()"/>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div id="loop-interval-row" class="field hidden" style="margin-top:10px;margin-bottom:0">
+              <label>ทุกกี่นาที</label>
+              <input type="number" id="loop-minutes" value="10" min="1" max="120"/>
+            </div>
+          </div>
+
+          <div id="form-error" class="alert alert-err hidden" style="margin-top:12px"></div>
+
+        </div><!-- end scrollable -->
+
+        <!-- sticky footer button -->
+        <div style="padding:12px 0 16px;flex-shrink:0">
+          <button type="submit" class="btn btn-primary" id="start-btn">
+            <span id="start-icon">▶</span> <span id="start-label">เริ่มค้นหา</span>
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <!-- ── RIGHT: Run / Log panel ── -->
+  <div class="col-right" style="padding-top:14px">
+    <div id="run-section" class="hidden" style="height:100%;display:flex;flex-direction:column">
+      <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0">
+
+        <!-- Status row -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div id="run-status-badge" class="status-badge badge-running">
+            <span class="pulse-dot"></span> Scraping in progress...
+          </div>
+        </div>
+
+        <!-- Neon progress bar -->
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+        </div>
+
+        <!-- Activity card -->
+        <div class="activity-card">
+          <div class="activity-label">
+            <span class="live-dot"></span>
+            Bot Activity
+          </div>
+          <div id="activity-main" class="activity-main">กำลังเตรียมเริ่มงาน...</div>
+          <div id="activity-sub" class="activity-sub">เมื่อเริ่ม scrape แล้ว ระบบจะอธิบายทีละช่วงว่า bot กำลังทำอะไรอยู่</div>
+          <div class="activity-stats">
+            <div class="activity-stat"><span>Group</span><strong id="activity-group">—</strong></div>
+            <div class="activity-stat"><span>Scroll</span><strong id="activity-scroll">—</strong></div>
+            <div class="activity-stat"><span>Posts</span><strong id="activity-posts">0</strong></div>
+            <div class="activity-stat"><span>Listings</span><strong id="activity-listings">0</strong></div>
+          </div>
+        </div>
+
+        <!-- Log -->
+        <div id="log-panel" aria-live="polite" aria-label="Scrape log"
+             style="flex:1;height:auto"></div>
+
+        <div class="row mt-12" style="flex-shrink:0">
+          <a href="/results" class="btn hidden" id="results-btn" style="flex:1">
+            ✦ ดูผลลัพธ์
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Idle placeholder -->
+    <div id="idle-placeholder">
+      <div class="idle-icon">📡</div>
+      <div class="idle-title">พร้อมเริ่มค้นหา</div>
+      <div class="idle-sub">ตั้งค่าและกด "เริ่มค้นหา" เพื่อให้ bot ออกล่าคอนโด</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  /* ── localStorage persistence ── */
+  const STORAGE_KEY = 'condoFormState';
+
+  function saveFormState() {
+    const urlRows = [...document.querySelectorAll('#url-list > div')];
+    const urls = urlRows.map(r => ({ value: r.querySelector('input').value, hidden: !!r.dataset.hidden }));
+    const state = {
+      urls,
+      TARGET_BUDGET:    document.querySelector('[name=TARGET_BUDGET]')?.value,
+      MAX_BUDGET:       document.querySelector('[name=MAX_BUDGET]')?.value,
+      MAX_MOVE_IN_COST: document.querySelector('[name=MAX_MOVE_IN_COST]')?.value,
+      MIN_SIZE_SQM:     document.querySelector('[name=MIN_SIZE_SQM]')?.value,
+      MUST_HAVE_WASHER: document.querySelector('[name=MUST_HAVE_WASHER]')?.checked,
+      NEED_PARKING:     document.querySelector('[name=NEED_PARKING]')?.checked,
+      MAX_SCROLL_ROUNDS:document.querySelector('[name=MAX_SCROLL_ROUNDS]')?.value,
+      MAX_POSTS_PER_RUN:document.querySelector('[name=MAX_POSTS_PER_RUN]')?.value,
+      LOOP_ON:          document.getElementById('loop-toggle')?.checked,
+      LOOP_MINUTES:     document.getElementById('loop-minutes')?.value,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function loadFormState() {
+    let saved;
+    try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (_) {}
+    return saved || null;
+  }
+
+  /* ── URL list ── */
+  function addUrlRow(value = '', hidden = false) {
+    const list = document.getElementById('url-list');
+    const row = document.createElement('div');
+    row.className = 'url-row';
+    if (hidden) row.dataset.hidden = '1';
+    row.innerHTML = `
+      <input type="text" name="FB_GROUP_URLS" value="${value.replace(/"/g,'&quot;')}"
+             placeholder="https://www.facebook.com/groups/..."/>
+      <button type="button" class="icon-btn" onclick="toggleHideRow(this)" title="ซ่อน/แสดง">👁</button>
+      <button type="button" class="icon-btn" onclick="removeUrlRow(this)" title="ลบ">✕</button>
+    `;
+    row.querySelector('input').addEventListener('input', saveFormState);
+    list.appendChild(row);
+    applyRowHiddenState(row);
+  }
+
+  function applyRowHiddenState(row) {
+    const isHidden = !!row.dataset.hidden;
+    const input = row.querySelector('input');
+    const hideBtn = row.querySelector('[title="ซ่อน/แสดง"]');
+    input.disabled = isHidden;
+    row.style.opacity = isHidden ? '0.35' : '1';
+    hideBtn.textContent = isHidden ? '👁' : '🙈';
+    hideBtn.title = isHidden ? 'เปิดใช้งาน' : 'ซ่อน';
+  }
+
+  function toggleHideRow(btn) {
+    const row = btn.closest('.url-row');
+    if (row.dataset.hidden) delete row.dataset.hidden;
+    else row.dataset.hidden = '1';
+    applyRowHiddenState(row);
+    saveFormState();
+  }
+
+  function removeUrlRow(btn) {
+    const list = document.getElementById('url-list');
+    if (list.children.length > 1) { btn.closest('.url-row').remove(); saveFormState(); }
+  }
+
+  document.getElementById('add-url-btn').addEventListener('click', () => { addUrlRow(); saveFormState(); });
+
+  /* restore หรือเริ่มต้น 1 row */
+  (function restoreForm() {
+    const saved = loadFormState();
+    const rawUrls = saved?.urls?.length ? saved.urls : [{ value: '', hidden: false }];
+    const urls = rawUrls.map(u => typeof u === 'string' ? { value: u, hidden: false } : u);
+    urls.forEach(u => addUrlRow(u.value, u.hidden));
+
+    if (!saved) return;
+    const set = (name, val) => { const el = document.querySelector(`[name=${name}]`); if (el) el.value = val ?? el.value; };
+    const setChk = (name, val) => { const el = document.querySelector(`[name=${name}]`); if (el) el.checked = !!val; };
+    set('TARGET_BUDGET',    saved.TARGET_BUDGET);
+    set('MAX_BUDGET',       saved.MAX_BUDGET);
+    set('MAX_MOVE_IN_COST', saved.MAX_MOVE_IN_COST);
+    set('MIN_SIZE_SQM',     saved.MIN_SIZE_SQM);
+    set('MAX_SCROLL_ROUNDS',saved.MAX_SCROLL_ROUNDS);
+    set('MAX_POSTS_PER_RUN',saved.MAX_POSTS_PER_RUN);
+    setChk('MUST_HAVE_WASHER', saved.MUST_HAVE_WASHER);
+    setChk('NEED_PARKING',     saved.NEED_PARKING);
+    if (saved.LOOP_ON) {
+      document.getElementById('loop-toggle').checked = true;
+      document.getElementById('loop-interval-row').classList.remove('hidden');
+    }
+    if (saved.LOOP_MINUTES) document.getElementById('loop-minutes').value = saved.LOOP_MINUTES;
+  })();
+
+  document.getElementById('scrape-form').addEventListener('change', saveFormState);
+  document.getElementById('scrape-form').addEventListener('input', saveFormState);
+
+  /* ── state ── */
+  let currentRunId = null;
+  let evtSource    = null;
+  let wakeLock     = null;
+  let isRunning    = false;
+  let loopTimer    = null;
+  let activityState = null;
+
+  function toggleLoopInput() {
+    const on = document.getElementById('loop-toggle').checked;
+    document.getElementById('loop-interval-row').classList.toggle('hidden', !on);
+  }
+
+  function getLoopMinutes() {
+    if (!document.getElementById('loop-toggle').checked) return null;
+    return parseInt(document.getElementById('loop-minutes').value) || 10;
+  }
+
+  function scheduleNextLoop() {
+    const minutes = getLoopMinutes();
+    if (!minutes) return;
+    const ms = minutes * 60 * 1000;
+    appendLog(`[loop] รอ ${minutes} นาที แล้วเริ่มใหม่...`);
+    loopTimer = setTimeout(() => startScrape(), ms);
+  }
+
+  function cancelLoop() {
+    if (loopTimer) { clearTimeout(loopTimer); loopTimer = null; }
+  }
+
+  /* ── Progress bar helpers ── */
+  const PHASE_PROGRESS = {
+    'validating_model': 5,
+    'scrape_start': 10,
+    'launch_browser': 15,
+    'session_check': 20,
+    'group_begin': 25,
+    'scroll': 40,
+    'post_found': 55,
+    'extract': 70,
+    'alerts_start': 85,
+    'export_start': 92,
+    'scrape_done': 100,
+  };
+  let progressValue = 0;
+
+  function setProgress(pct) {
+    if (pct <= progressValue && pct !== 0) return;
+    progressValue = pct;
+    document.getElementById('progress-fill').style.width = pct + '%';
+  }
+
+  /* ── start button state ── */
+  function setStartBtnRunning() {
+    isRunning = true;
+    const btn = document.getElementById('start-btn');
+    btn.disabled = false;
+    btn.classList.remove('btn-primary');
+    btn.classList.add('btn-danger');
+    document.getElementById('start-icon').textContent = '■';
+    document.getElementById('start-label').textContent = 'หยุดค้นหา';
+  }
+  function setStartBtnIdle(disabled) {
+    isRunning = false;
+    const btn = document.getElementById('start-btn');
+    btn.disabled = !!disabled;
+    btn.classList.remove('btn-danger');
+    btn.classList.add('btn-primary');
+    document.getElementById('start-icon').textContent = '▶';
+    document.getElementById('start-label').textContent = 'เริ่มค้นหา';
+  }
+
+  function toggleEye(inputId, btn) {
+    const inp = document.getElementById(inputId);
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+    btn.textContent = inp.type === 'password' ? '👁' : '🙈';
+  }
+
+  async function requestWakeLock() {
+    try {
+      if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+    } catch (_) {}
+  }
+  function releaseWakeLock() { wakeLock?.release(); wakeLock = null; }
+
+  /* ── log helpers ── */
+  const logPanel = document.getElementById('log-panel');
+  const activityMain = document.getElementById('activity-main');
+  const activitySub = document.getElementById('activity-sub');
+  const activityGroup = document.getElementById('activity-group');
+  const activityScroll = document.getElementById('activity-scroll');
+  const activityPosts = document.getElementById('activity-posts');
+  const activityListings = document.getElementById('activity-listings');
+
+  function resetActivityState() {
+    activityState = {
+      main: 'กำลังเตรียมเริ่มงาน...',
+      sub: 'เมื่อเริ่ม scrape แล้ว ระบบจะอธิบายทีละช่วงว่า bot กำลังทำอะไรอยู่',
+      group: '—', scroll: '—', posts: 0, listings: 0,
+      currentGroupIndex: null, totalGroups: null,
+    };
+    progressValue = 0;
+    document.getElementById('progress-fill').style.width = '0%';
+    renderActivityState();
+  }
+
+  function animateStat(el) {
+    el.classList.remove('stat-pop');
+    void el.offsetWidth;
+    el.classList.add('stat-pop');
+  }
+
+  function renderActivityState() {
+    activityMain.textContent = activityState.main;
+    activitySub.textContent = activityState.sub;
+    activityGroup.textContent = activityState.group;
+    activityScroll.textContent = activityState.scroll;
+    const newPosts = String(activityState.posts);
+    const newListings = String(activityState.listings);
+    if (activityPosts.textContent !== newPosts) { activityPosts.textContent = newPosts; animateStat(activityPosts); }
+    if (activityListings.textContent !== newListings) { activityListings.textContent = newListings; animateStat(activityListings); }
+  }
+
+  function humanizeProgress(text) {
+    let m = text.match(/^\[phase\] validating_model model=(.+)$/);
+    if (m) {
+      activityState.main = 'กำลังตรวจสอบโมเดล AI ก่อนเริ่มงาน';
+      activityState.sub = `เช็กว่า model ${m[1]} พร้อมใช้งานก่อนเปิด browser และเริ่ม scrape`;
+      setProgress(PHASE_PROGRESS.validating_model); return true;
+    }
+
+    m = text.match(/^\[phase\] scrape_start groups=(\d+) max_posts=(\d+) vision=(on|off)$/);
+    if (m) {
+      activityState.main = 'กำลังตั้งค่างาน scrape รอบใหม่';
+      activityState.sub = `รอบนี้จะวิ่ง ${m[1]} group, จำกัดสูงสุด ${m[2]} posts และ vision ${m[3] === 'on' ? 'เปิด' : 'ปิด'}`;
+      setProgress(PHASE_PROGRESS.scrape_start); return true;
+    }
+
+    if (text === '[phase] launch_browser') {
+      activityState.main = 'กำลังเปิด browser context ของ Facebook';
+      activityState.sub = 'กำลังกู้ session เดิมและเตรียม environment สำหรับเข้าไปไล่อ่านโพสต์';
+      setProgress(PHASE_PROGRESS.launch_browser); return true;
+    }
+
+    if (text === '[phase] session_check') {
+      activityState.main = 'กำลังตรวจสอบว่า session Facebook ยังใช้ได้';
+      activityState.sub = 'เช็ก cookies และหน้า current session ก่อนเริ่มอ่าน feed จริง';
+      setProgress(PHASE_PROGRESS.session_check); return true;
+    }
+
+    m = text.match(/^\[group\] begin index=(\d+) total=(\d+) url=(.+)$/);
+    if (m) {
+      activityState.currentGroupIndex = Number(m[1]);
+      activityState.totalGroups = Number(m[2]);
+      activityState.group = `${m[1]}/${m[2]}`;
+      activityState.scroll = '—';
+      activityState.main = `กำลังเข้า Group ${m[1]}/${m[2]}`;
+      activityState.sub = `เปิดหน้า group แล้วเริ่มอ่าน feed: ${m[3]}`;
+      setProgress(PHASE_PROGRESS.group_begin); return true;
+    }
+
+    m = text.match(/^\[group-open\] url=(.+)$/);
+    if (m) {
+      activityState.main = 'กำลังโหลดหน้า group และรอ feed แสดงผล';
+      activityState.sub = `รอ DOM พร้อมใช้งานสำหรับการหาโพสต์ใน ${m[1]}`;
+      return true;
+    }
+
+    m = text.match(/^\[scroll\] round=(\d+)\/(\d+) accepted=(\d+) seen=(\d+)$/);
+    if (m) {
+      activityState.scroll = `${m[1]}/${m[2]}`;
+      activityState.main = `กำลัง scroll feed รอบ ${m[1]}/${m[2]}`;
+      activityState.sub = `เห็นโพสต์ไม่ซ้ำแล้ว ${m[4]} รายการ และรับเข้าคิววิเคราะห์ ${m[3]} รายการ`;
+      const pct = PHASE_PROGRESS.scroll + Math.round((Number(m[1]) / Number(m[2])) * 15);
+      setProgress(Math.min(pct, 65)); return true;
+    }
+
+    m = text.match(/^\[post-found\] post_id=(.+) images=(\d+) comments=(\d+) accepted=(\d+)$/);
+    if (m) {
+      activityState.posts = Math.max(activityState.posts, Number(m[4]));
+      activityState.main = 'เจอโพสต์ที่น่าจะเป็นประกาศเช่า กำลังเก็บรายละเอียด';
+      activityState.sub = `โพสต์ ${m[1]} มีรูป ${m[2]} รูป และคอมเมนต์ ${m[3]} รายการ`;
+      return true;
+    }
+
+    m = text.match(/^\[post-skip\] reason=sale_only accepted=(\d+) seen=(\d+)$/);
+    if (m) {
+      activityState.main = 'กำลังคัดโพสต์ที่ไม่ใช่ประกาศเช่าออก';
+      activityState.sub = `โพสต์นี้มีลักษณะเป็นงานขายล้วน จึงข้ามไป ตอนนี้เห็นแล้ว ${m[2]} โพสต์`;
+      return true;
+    }
+
+    m = text.match(/^\[post-db\] status=(new|duplicate|duplicate_post_id|duplicate_cross_group|prefiltered_skip|scored|skipped) post=(.+?)(?: db_id=(\d+))?(?: reason=(.+))?(?: images=(\d+) comments=(\d+))?(?: listings=(\d+))?$/);
+    if (m) {
+      const status = m[1];
+      if (status === 'new') {
+        activityState.main = 'กำลังบันทึกโพสต์ใหม่เข้าฐานข้อมูล';
+        activityState.sub = `บันทึก ${m[2]} เพื่อเตรียม extract ข้อมูลเชิงลึกต่อ`;
+      } else if (status === 'duplicate' || status === 'duplicate_post_id' || status === 'duplicate_cross_group') {
+        activityState.main = 'เจอโพสต์ซ้ำ กำลังข้ามเพื่อไม่วิเคราะห์ซ้ำ';
+        activityState.sub = status === 'duplicate_cross_group'
+          ? `โพสต์ ${m[2]} มีเนื้อหาซ้ำกับโพสต์อีกกลุ่มหนึ่งแล้ว`
+          : `โพสต์ ${m[2]} มีอยู่ในฐานข้อมูลแล้ว`;
+      } else if (status === 'prefiltered_skip') {
+        activityState.main = 'ข้ามโพสต์ที่โดน pre-filter';
+        activityState.sub = `โพสต์ ${m[2]} ไม่ผ่านเงื่อนไขเบื้องต้น`;
+      } else if (status === 'scored') {
+        activityState.main = 'วิเคราะห์และให้คะแนนโพสต์นี้เสร็จแล้ว';
+        activityState.sub = `ได้ผลลัพธ์ ${m[7] || 0} listing จากโพสต์ ${m[2]}`;
+      } else {
+        activityState.main = 'ข้ามโพสต์นี้';
+        activityState.sub = `เหตุผล: ${m[4] || 'ไม่มีข้อมูลเพิ่มเติม'}`;
+      }
+      return true;
+    }
+
+    m = text.match(/^\[extract\] start post=(.+)$/);
+    if (m) {
+      activityState.main = 'กำลัง extract ข้อมูลเชิงโครงสร้างจากข้อความโพสต์';
+      activityState.sub = `กำลังดึงราคา, ขนาดห้อง, ชื่อคอนโด และข้อมูลสำคัญอื่น ๆ จาก ${m[1]}`;
+      setProgress(PHASE_PROGRESS.extract); return true;
+    }
+
+    m = text.match(/^\[extract\] success post=(.+) listings=(\d+)$/);
+    if (m) {
+      activityState.listings += Number(m[2]);
+      activityState.main = 'extract ข้อมูลจากโพสต์สำเร็จ';
+      activityState.sub = `โพสต์ ${m[1]} แยกได้ ${m[2]} listing เพื่อส่งเข้า scoring`;
+      return true;
+    }
+
+    m = text.match(/^\[extract\] failed post=(.+) error=(.+)$/);
+    if (m) {
+      activityState.main = 'extract โพสต์ไม่สำเร็จ';
+      activityState.sub = `โพสต์ ${m[1]} มีปัญหาระหว่างแปลงข้อความ: ${m[2]}`;
+      return true;
+    }
+
+    m = text.match(/^\[listing\] tier=(\w+) condo=(.+) rent=(.+) size=(.+)$/);
+    if (m) {
+      const tierText = { must_call: 'Must Call', shortlist: 'Shortlist', need_info: 'Need Info', maybe: 'Maybe' }[m[1]] || m[1];
+      activityState.main = `กำลังสรุปผล listing และจัดเข้ากลุ่ม ${tierText}`;
+      activityState.sub = `${m[2]} | ค่าเช่า ${m[3]} | ขนาด ${m[4]}`;
+      return true;
+    }
+
+    m = text.match(/^\[group-summary\] url=(.+) accepted=(\d+) unique_seen=(\d+) skipped_sale_only=(\d+) skipped_low_signal=(\d+)$/);
+    if (m) {
+      activityState.main = 'สรุปงานของ group นี้เสร็จแล้ว';
+      activityState.sub = `รับเข้าวิเคราะห์ ${m[2]} โพสต์ จากที่เห็น ${m[3]} โพสต์ ข้ามขาย ${m[4]} และ low signal ${m[5]}`;
+      return true;
+    }
+
+    m = text.match(/^\[phase\] scrape_done groups=(\d+) posts=(\d+) listings=(\d+) must_call=(\d+)$/);
+    if (m) {
+      activityState.posts = Number(m[2]);
+      activityState.listings = Number(m[3]);
+      activityState.main = 'งาน scrape หลักเสร็จแล้ว';
+      activityState.sub = `สแกน ${m[1]} groups, เจอ ${m[2]} posts, แยกได้ ${m[3]} listings และมี Must Call ${m[4]} รายการ`;
+      setProgress(PHASE_PROGRESS.scrape_done); return true;
+    }
+
+    if (text === '[phase] alerts_start') {
+      activityState.main = 'กำลังเช็กว่า listing ไหนต้องส่ง alert';
+      activityState.sub = 'ตรวจเฉพาะรายการที่เข้าเกณฑ์ tier ตาม preferences';
+      setProgress(PHASE_PROGRESS.alerts_start); return true;
+    }
+
+    if (text === '[phase] export_start') {
+      activityState.main = 'กำลังสร้างไฟล์ผลลัพธ์';
+      activityState.sub = 'รวบรวมข้อมูลจากฐานข้อมูลเพื่อ export เป็น Excel';
+      setProgress(PHASE_PROGRESS.export_start); return true;
+    }
+
+    m = text.match(/^\[phase\] export_done path=(.+)$/);
+    if (m) {
+      activityState.main = 'สร้างผลลัพธ์ปลายทางเสร็จแล้ว';
+      activityState.sub = m[1] === 'none' ? 'รอบนี้ยังไม่มี listing สำหรับ export' : `บันทึก Excel ไว้ที่ ${m[1]}`;
+      return true;
+    }
+
+    return false;
+  }
+
+  function appendLog(text) {
+    humanizeProgress(text);
+    renderActivityState();
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    if (/MUST.CALL|★/.test(text))   line.classList.add('log-must');
+    else if (/error|Error|failed/i.test(text)) line.classList.add('log-err');
+    else if (/done|complete|✓/i.test(text))    line.classList.add('log-ok');
+    line.textContent = text;
+    logPanel.appendChild(line);
+    logPanel.scrollTop = logPanel.scrollHeight;
+  }
+
+  /* ── UI state ── */
+  function showRunSection(status) {
+    document.getElementById('run-section').classList.remove('hidden');
+    document.getElementById('run-section').style.display = 'flex';
+    document.getElementById('idle-placeholder').classList.add('hidden');
+    updateStatusBadge(status || 'running');
+    if ((status || 'running') === 'running') {
+      document.getElementById('results-btn').classList.add('hidden');
+    }
+  }
+  function showFormSection() {
+    document.getElementById('run-section').classList.add('hidden');
+    document.getElementById('idle-placeholder').classList.remove('hidden');
+    setStartBtnIdle(false);
+  }
+
+  function updateStatusBadge(status) {
+    const badge = document.getElementById('run-status-badge');
+    const labels = {
+      running: ['badge-running', '<span class="pulse-dot"></span> Scraping in progress...'],
+      done:    ['badge-done',    '✦ Done'],
+      stopped: ['badge-stopped', '■ Stopped'],
+      failed:  ['badge-failed',  '✕ Failed'],
+    };
+    badge.className = 'status-badge ' + (labels[status]?.[0] ?? 'badge-running');
+    badge.innerHTML = labels[status]?.[1] ?? status;
+  }
+
+  function onRunFinished(status) {
+    releaseWakeLock();
+    updateStatusBadge(status);
+    if (status === 'done') {
+      activityState.main = 'เสร็จเรียบร้อย ✦';
+      activityState.sub = 'bot ทำงานจบแล้ว คุณเปิดดูตารางผลลัพธ์ต่อได้ทันที';
+      setProgress(100);
+    } else if (status === 'stopped') {
+      activityState.main = 'หยุดการทำงานแล้ว';
+      activityState.sub = 'bot ถูกสั่งหยุดก่อนจบรอบนี้';
+    } else if (status === 'failed') {
+      activityState.main = 'การทำงานล้มเหลว';
+      activityState.sub = 'ดู log ด้านล่างเพื่อเช็กจุดที่เกิดปัญหา';
+    }
+    renderActivityState();
+    document.getElementById('results-btn').classList.remove('hidden');
+    if (status === 'done' && getLoopMinutes()) {
+      setStartBtnIdle(false);
+      scheduleNextLoop();
+    } else {
+      setStartBtnIdle(false);
+    }
+  }
+
+  /* ── SSE stream ── */
+  function startStream(runId) {
+    if (evtSource) evtSource.close();
+    evtSource = new EventSource('/stream/' + runId);
+    evtSource.onmessage = (e) => {
+      let data;
+      try { data = JSON.parse(e.data); } catch (_) { return; }
+      if (data.ping) return;
+      if (data.done) {
+        evtSource.close();
+        onRunFinished(data.status || 'done');
+        return;
+      }
+      appendLog(typeof data === 'string' ? data : JSON.stringify(data));
+    };
+    evtSource.onerror = () => {
+      evtSource.close();
+      appendLog('[connection lost — check server]');
+    };
+  }
+
+  async function doStop() {
+    if (!currentRunId) return;
+    setStartBtnIdle(true);
+    await fetch('/stop/' + currentRunId, { method: 'POST' });
+    releaseWakeLock();
+  }
+
+  async function startScrape() {
+    const errBox = document.getElementById('form-error');
+    errBox.classList.add('hidden');
+
+    setStartBtnIdle(true);
+    document.getElementById('start-icon').textContent = '⟳';
+    document.getElementById('start-label').textContent = 'กำลังเริ่ม...';
+
+    const fd = new FormData(document.getElementById('scrape-form'));
+
+    let res;
+    try {
+      res = await fetch('/start', { method: 'POST', body: fd });
+    } catch (_) {
+      errBox.textContent = 'Network error — is the server running?';
+      errBox.classList.remove('hidden');
+      setStartBtnIdle(false);
+      return;
+    }
+
+    const json = await res.json();
+
+    if (!res.ok) {
+      let msg;
+      if (json.error === 'no_credentials') {
+        msg = '⚠️ ยังไม่ได้ login Facebook — กรุณารัน python main.py --login ใน terminal ก่อน แล้วค่อยเริ่มค้นหา';
+      } else {
+        msg = json.errors ? json.errors.join('\n') : (json.error || 'Unknown error');
+      }
+      errBox.textContent = msg;
+      errBox.classList.remove('hidden');
+      setStartBtnIdle(false);
+      cancelLoop();
+      return;
+    }
+
+    currentRunId = json.run_id;
+    logPanel.innerHTML = '';
+    resetActivityState();
+    showRunSection('running');
+    setStartBtnRunning();
+    await requestWakeLock();
+    startStream(currentRunId);
+  }
+
+  document.getElementById('scrape-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (isRunning) { cancelLoop(); await doStop(); return; }
+    await startScrape();
+  });
+
+  window.addEventListener('DOMContentLoaded', async () => {
+    resetActivityState();
+    const saved = sessionStorage.getItem('condoRunId');
+    if (!saved) return;
+    try {
+      const r = await fetch('/status/' + saved);
+      const d = await r.json();
+      if (d.status === 'running') {
+        currentRunId = saved;
+        showRunSection('running');
+        setStartBtnRunning();
+        startStream(saved);
+      } else if (d.status === 'done' || d.status === 'failed' || d.status === 'stopped') {
+        currentRunId = saved;
+        showRunSection(d.status);
+        startStream(saved);
+      }
+    } catch (_) {}
+  });
+
+  (function patchSave() {
+    const obs = new MutationObserver(() => {
+      const saved = sessionStorage.getItem('condoRunId');
+      if (currentRunId && currentRunId !== saved)
+        sessionStorage.setItem('condoRunId', currentRunId);
+    });
+    obs.observe(document.getElementById('run-section'), { attributes: true, attributeFilter: ['class'] });
+  })();
+
+  /* ── Post URL checker ── */
+  document.getElementById('post-check-btn').addEventListener('click', async () => {
+    const url = document.getElementById('post-check-url').value.trim();
+    const resultBox = document.getElementById('post-check-result');
+    if (!url) return;
+
+    const btn = document.getElementById('post-check-btn');
+    btn.disabled = true;
+    btn.textContent = 'กำลังตรวจสอบ...';
+    resultBox.classList.add('hidden');
+
+    try {
+      const res = await fetch('/check_post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const d = await res.json();
+      if (!res.ok) {
+        const msg = d.error === 'no_credentials'
+          ? 'ยังไม่ได้ login Facebook — รัน python main.py --login ก่อน'
+          : d.error === 'invalid_url'
+          ? 'URL ไม่ถูกต้อง ต้องเป็น facebook.com'
+          : (d.error || 'เกิดข้อผิดพลาด');
+        resultBox.textContent = '⚠ ' + msg;
+        resultBox.style.color = '#F87171';
+      } else {
+        resultBox.innerHTML =
+          `<strong style="color:var(--accent)">${d.qualified}</strong> / ${d.total} คอมเมนต์ผ่านเกณฑ์`;
+        if (d.qualified > 0 && d.previews.length > 0) {
+          const escaped = d.previews.map(p => p.replace(/</g, '&lt;').replace(/>/g, '&gt;'));
+          resultBox.innerHTML +=
+            `<br><span style="color:var(--muted);font-size:.76rem">ตัวอย่าง: ${escaped.join(' · ')}</span>`;
+        }
+        resultBox.style.color = 'var(--text)';
+      }
+    } catch (_) {
+      resultBox.textContent = '⚠ Network error';
+      resultBox.style.color = '#F87171';
+    }
+
+    resultBox.classList.remove('hidden');
+    btn.disabled = false;
+    btn.textContent = 'ตรวจสอบ';
+  });
+</script>
+{% endblock %}

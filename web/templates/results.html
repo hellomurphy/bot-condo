@@ -1,0 +1,520 @@
+{% extends "base.html" %}
+{% block title %}Results — Condo Radar{% endblock %}
+
+{% block head %}
+<style>
+  /* ── Page header row ── */
+  .results-header {
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 8px; margin-top: 20px;
+  }
+  .export-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 16px; background: var(--accent); color: #fff;
+    border-radius: 8px; font-size: .85rem; font-weight: 600;
+    text-decoration: none; transition: background .15s;
+  }
+  .export-btn:hover { background: var(--accent-h); text-decoration: none; }
+
+  /* ── Filter bar ── */
+  .filter-bar {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 16px; margin-bottom: 16px;
+    flex-wrap: nowrap; overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .filter-bar::-webkit-scrollbar { display: none; }
+
+  /* Tier pill buttons */
+  .tier-pills {
+    display: flex; gap: 6px; flex-shrink: 0;
+  }
+  .tier-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 6px 13px; border-radius: 20px;
+    font-size: .78rem; font-weight: 600; white-space: nowrap;
+    border: 1.5px solid var(--border);
+    background: var(--surface); color: var(--muted);
+    cursor: pointer; transition: all .15s;
+    user-select: none;
+  }
+  .tier-pill:hover { border-color: var(--accent); color: var(--accent); }
+  .tier-pill.active {
+    background: var(--accent); border-color: var(--accent);
+    color: #fff; box-shadow: 0 2px 8px rgba(79,70,229,.35);
+  }
+  .tier-pill .pill-dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  }
+
+  /* Expandable search */
+  .search-wrap {
+    margin-left: auto; flex-shrink: 0;
+    display: flex; align-items: center;
+    position: relative;
+  }
+  .search-toggle {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 1.5px solid var(--border);
+    background: var(--surface); color: var(--muted);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; transition: all .2s; flex-shrink: 0;
+    position: relative; z-index: 2;
+  }
+  .search-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  .search-toggle.open { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .search-input {
+    position: absolute; right: 0;
+    width: 0; opacity: 0; pointer-events: none;
+    height: 36px; border-radius: 18px;
+    border: 1.5px solid var(--accent);
+    background: var(--surface); color: var(--text);
+    font-size: .85rem; padding: 0 44px 0 14px;
+    transition: width .25s cubic-bezier(.4,0,.2,1), opacity .2s;
+    outline: none;
+  }
+  .search-input.open {
+    width: 200px; opacity: 1; pointer-events: auto;
+  }
+
+  /* ── Card grid ── */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    padding-bottom: 32px;
+  }
+
+  /* ── Property card ── */
+  .prop-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    transition: transform .18s, box-shadow .18s;
+    display: flex;
+    flex-direction: column;
+  }
+  .prop-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,.13);
+  }
+
+  /* ── Hero image ── */
+  .prop-img-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: #1a1a2e;
+    overflow: hidden;
+  }
+  .prop-img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    opacity: 0;
+    transition: opacity .4s ease;
+  }
+  .prop-img.loaded { opacity: 1; }
+  .prop-img-placeholder {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 3rem; color: #444;
+  }
+
+  /* ── Tier badge (overlay on image) ── */
+  .tier-overlay {
+    position: absolute; top: 10px; left: 10px;
+    padding: 4px 10px; border-radius: 20px;
+    font-size: .72rem; font-weight: 700; letter-spacing: .03em;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,.25);
+    text-shadow: 0 1px 2px rgba(0,0,0,.3);
+  }
+  .tier-overlay.t-must  { background: rgba(245,158,11,.82); color: #fff; }
+  .tier-overlay.t-short { background: rgba(34,197,94,.82);  color: #fff; }
+  .tier-overlay.t-info  { background: rgba(59,130,246,.82); color: #fff; }
+  .tier-overlay.t-restr { background: rgba(107,114,128,.82);color: #fff; }
+  .tier-overlay.t-maybe { background: rgba(30,30,50,.72);   color: rgba(255,255,255,.8); }
+
+  /* ── Worth badge (bottom of image) ── */
+  .worth-bar {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px;
+    background: linear-gradient(to top, rgba(0,0,0,.75) 0%, transparent 100%);
+  }
+  .worth-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: .78rem; font-weight: 700;
+    padding: 3px 9px; border-radius: 20px;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,.2);
+  }
+  .worth-super  {
+    background: rgba(16,185,129,.25); color: #6ee7b7;
+    box-shadow: 0 0 10px rgba(16,185,129,.45);
+  }
+  .worth-good   { background: rgba(34,197,94,.2);  color: #86efac; }
+  .worth-ok     { background: rgba(59,130,246,.2); color: #93c5fd; }
+  .worth-low    { background: rgba(107,114,128,.2);color: #d1d5db; }
+  .rent-overlay {
+    font-size: 1.15rem; font-weight: 800; color: #fff;
+    text-shadow: 0 1px 4px rgba(0,0,0,.5);
+    letter-spacing: -.02em;
+  }
+  .rent-overlay .rent-unit { font-size: .7rem; font-weight: 500; opacity: .8; }
+
+  /* ── Score progress bar ── */
+  .score-section {
+    padding: 10px 14px 0;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .score-track {
+    flex: 1; height: 6px; background: var(--border);
+    border-radius: 3px; overflow: hidden;
+  }
+  .score-fill {
+    height: 100%; border-radius: 3px;
+    transition: width .6s ease;
+  }
+  .score-fill.sf-super { background: linear-gradient(90deg, #10b981, #6ee7b7); }
+  .score-fill.sf-good  { background: linear-gradient(90deg, #22c55e, #86efac); }
+  .score-fill.sf-ok    { background: linear-gradient(90deg, #3b82f6, #93c5fd); }
+  .score-fill.sf-low   { background: var(--muted); }
+  .score-num {
+    font-size: .8rem; font-weight: 700; min-width: 28px;
+    text-align: right; color: var(--text);
+  }
+
+  /* ── Info section ── */
+  .prop-info {
+    padding: 10px 14px 12px;
+    flex: 1;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .prop-name {
+    font-size: 1rem; font-weight: 700; line-height: 1.3;
+    color: var(--text);
+  }
+  .prop-meta {
+    font-size: .78rem; color: var(--muted);
+    display: flex; flex-wrap: wrap; gap: 4px 10px;
+  }
+  .prop-meta span { display: inline-flex; align-items: center; gap: 3px; }
+
+  /* ── Action row ── */
+  .prop-actions {
+    padding: 10px 14px 14px;
+    display: flex; gap: 8px; align-items: center;
+    border-top: 1px solid var(--border);
+  }
+  .action-link {
+    flex: 1;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 0; border-radius: 8px; font-size: .82rem; font-weight: 600;
+    background: rgba(79,70,229,.1); color: var(--accent);
+    text-decoration: none; transition: background .15s;
+    border: 1px solid rgba(79,70,229,.2);
+  }
+  .action-link:hover { background: rgba(79,70,229,.18); text-decoration: none; }
+  .action-link.disabled {
+    opacity: .4; pointer-events: none; cursor: not-allowed;
+  }
+  .delete-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    padding: 8px 12px; border-radius: 8px; font-size: .82rem; font-weight: 600;
+    background: rgba(239,68,68,.08); color: var(--red);
+    border: 1px solid rgba(239,68,68,.2);
+    cursor: pointer; transition: background .15s;
+  }
+  .delete-btn:hover { background: rgba(239,68,68,.15); }
+  .delete-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* ── Empty state ── */
+  .empty-state {
+    text-align: center; padding: 64px 16px; color: var(--muted);
+  }
+  .empty-state .big { font-size: 3.5rem; margin-bottom: 16px; }
+
+  /* ── No-results banner ── */
+  .no-results-msg {
+    text-align: center; padding: 32px; color: var(--muted); font-size: .9rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="results-header">
+  <div>
+    <h2 style="font-size:1.15rem;font-weight:800">Results</h2>
+    <div class="muted" style="font-size:.82rem" id="count-label">
+      {{ count }} listing{{ 's' if count != 1 else '' }}
+    </div>
+  </div>
+  <a href="/export" class="export-btn">↓ Excel</a>
+</div>
+
+{% if rows %}
+<div class="filter-bar">
+  <div class="tier-pills">
+    <button class="tier-pill active" data-tier="" onclick="setTier(this)">All</button>
+    <button class="tier-pill" data-tier="must_call" onclick="setTier(this)">
+      <span class="pill-dot" style="background:#F59E0B"></span>Must Call
+    </button>
+    <button class="tier-pill" data-tier="shortlist" onclick="setTier(this)">
+      <span class="pill-dot" style="background:#22C55E"></span>Shortlist
+    </button>
+    <button class="tier-pill" data-tier="need_info" onclick="setTier(this)">
+      <span class="pill-dot" style="background:#3B82F6"></span>Need Info
+    </button>
+    <button class="tier-pill" data-tier="maybe" onclick="setTier(this)">
+      <span class="pill-dot" style="background:#9CA3AF"></span>Maybe
+    </button>
+  </div>
+
+  <div class="search-wrap">
+    <input class="search-input" id="search-box" type="search"
+           placeholder="ค้นหา..." aria-label="Search listings"
+           oninput="applyFilter()"/>
+    <button class="search-toggle" id="search-toggle" onclick="toggleSearch()" aria-label="Search">
+      🔍
+    </button>
+  </div>
+</div>
+
+<div class="card-grid" id="card-grid">
+  {% for row in rows %}
+  {% set tier = row.tier or 'maybe' %}
+  {% set score = row.final_total | int if row.final_total is not none else none %}
+
+  {# ── Score tier labels ── #}
+  {% if score is not none and score >= 80 %}
+    {% set worth_cls = 'worth-super' %}
+    {% set worth_label = '🔥 Super Worth' %}
+    {% set sf_cls = 'sf-super' %}
+  {% elif score is not none and score >= 65 %}
+    {% set worth_cls = 'worth-good' %}
+    {% set worth_label = '✓ Good Value' %}
+    {% set sf_cls = 'sf-good' %}
+  {% elif score is not none and score >= 50 %}
+    {% set worth_cls = 'worth-ok' %}
+    {% set worth_label = '~ Fair Deal' %}
+    {% set sf_cls = 'sf-ok' %}
+  {% else %}
+    {% set worth_cls = 'worth-low' %}
+    {% set worth_label = 'Low Score' %}
+    {% set sf_cls = 'sf-low' %}
+  {% endif %}
+
+  {# ── Tier overlay labels ── #}
+  {% if tier == 'must_call' %}
+    {% set tier_cls = 't-must' %}
+    {% set tier_label = '★ Must Call' %}
+  {% elif tier == 'shortlist' %}
+    {% set tier_cls = 't-short' %}
+    {% set tier_label = '✓ Shortlist' %}
+  {% elif tier == 'need_info' %}
+    {% if row.is_restricted_display %}
+      {% set tier_cls = 't-restr' %}
+      {% set tier_label = 'Restricted' %}
+    {% else %}
+      {% set tier_cls = 't-info' %}
+      {% set tier_label = 'ℹ Need Info' %}
+    {% endif %}
+  {% else %}
+    {% set tier_cls = 't-maybe' %}
+    {% set tier_label = 'Maybe' %}
+  {% endif %}
+
+  <div class="prop-card"
+       data-listing-id="{{ row.id }}"
+       data-tier="{{ tier }}"
+       data-search="{{ [row.condo_name, row.location_text, row.station_name, row.room_type] | join(' ') | lower }}">
+
+    <!-- Hero image -->
+    <div class="prop-img-wrap">
+      {% if row.first_image_url %}
+        <img class="prop-img"
+             data-src="{{ row.first_image_url }}"
+             loading="lazy"
+             referrerpolicy="no-referrer"
+             alt="listing image"
+             onload="this.classList.add('loaded')"
+             onerror="this.closest('.prop-img-wrap').querySelector('.prop-img-placeholder').style.display='flex'; this.remove()"/>
+      {% endif %}
+      <div class="prop-img-placeholder" {% if row.first_image_url %}style="display:none"{% endif %}>🏠</div>
+
+      <!-- Tier badge top-left -->
+      <div class="tier-overlay {{ tier_cls }}">{{ tier_label }}</div>
+
+      <!-- Score badge + price bottom -->
+      <div class="worth-bar">
+        {% if score is not none %}
+          <span class="worth-badge {{ worth_cls }}">{{ worth_label }} ({{ score }}%)</span>
+        {% else %}
+          <span></span>
+        {% endif %}
+        {% if row.monthly_rent %}
+          <span class="rent-overlay">
+            ฿{{ "{:,.0f}".format(row.monthly_rent) }}<span class="rent-unit">/mo</span>
+          </span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Score bar -->
+    {% if score is not none %}
+    <div class="score-section">
+      <div class="score-track">
+        <div class="score-fill {{ sf_cls }}" style="width:{{ [score, 100] | min }}%"></div>
+      </div>
+      <div class="score-num">{{ score }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Info -->
+    <div class="prop-info">
+      <div class="prop-name">{{ row.condo_name or '(ไม่ระบุชื่อ)' }}</div>
+      <div class="prop-meta">
+        {% if row.location_text %}
+          <span>📍 {{ row.location_text }}</span>
+        {% endif %}
+        {% if row.station_name %}
+          <span>🚇 {{ row.station_name }}</span>
+        {% endif %}
+        {% if row.size_sqm %}
+          <span>📏 {{ row.size_sqm }} sqm</span>
+        {% endif %}
+        {% if row.room_type %}
+          <span>🛏 {{ row.room_type }}</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="prop-actions">
+      {% if row.post_url %}
+        <a href="{{ row.post_url }}" target="_blank" rel="noopener noreferrer" class="action-link">
+          ↗ ดูโพสต์จริง
+        </a>
+      {% else %}
+        <span class="action-link disabled">↗ ดูโพสต์จริง</span>
+      {% endif %}
+      <button type="button" class="delete-btn" onclick="deleteListing({{ row.id }}, this)">
+        🗑
+      </button>
+    </div>
+
+  </div>
+  {% endfor %}
+</div>
+
+<div id="no-results" class="no-results-msg hidden">
+  ไม่พบ listing ที่ตรงกับ filter
+</div>
+
+{% else %}
+<div class="empty-state">
+  <div class="big">🏠</div>
+  <div style="font-size:1.1rem;font-weight:700;margin-bottom:8px">ยังไม่มีผลลัพธ์</div>
+  <div class="muted">รัน scrape ก่อน แล้วกลับมาดูที่นี่</div>
+  <div style="margin-top:20px">
+    <a href="/" class="btn btn-primary" style="width:auto;padding:10px 28px">ไปหน้า Scraper</a>
+  </div>
+</div>
+{% endif %}
+
+<script>
+  /* ── Lazy-load images with IntersectionObserver ── */
+  (function () {
+    const imgs = document.querySelectorAll('img[data-src]');
+    if (!imgs.length) return;
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (!e.isIntersecting) return;
+        const img = e.target;
+        img.src = img.dataset.src;
+        io.unobserve(img);
+      });
+    }, { rootMargin: '120px' });
+    imgs.forEach(img => io.observe(img));
+  })();
+
+  /* ── Tier pills ── */
+  let activeTier = '';
+  function setTier(btn) {
+    activeTier = btn.dataset.tier;
+    document.querySelectorAll('.tier-pill').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    applyFilter();
+  }
+
+  /* ── Expandable search ── */
+  let searchOpen = false;
+  function toggleSearch() {
+    searchOpen = !searchOpen;
+    const input  = document.getElementById('search-box');
+    const toggle = document.getElementById('search-toggle');
+    input.classList.toggle('open', searchOpen);
+    toggle.classList.toggle('open', searchOpen);
+    if (searchOpen) {
+      input.focus();
+    } else {
+      input.value = '';
+      applyFilter();
+    }
+  }
+  /* Close search on Escape */
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && searchOpen) toggleSearch();
+  });
+
+  /* ── Filter ── */
+  function applyFilter() {
+    const search = (document.getElementById('search-box')?.value || '').toLowerCase().trim();
+    const cards  = document.querySelectorAll('.prop-card');
+    let visible  = 0;
+
+    cards.forEach(card => {
+      const matchTier   = !activeTier || card.dataset.tier === activeTier;
+      const matchSearch = !search || card.dataset.search.includes(search);
+      const show = matchTier && matchSearch;
+      card.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+
+    const noRes = document.getElementById('no-results');
+    if (noRes) noRes.classList.toggle('hidden', visible > 0);
+
+    const countLabel = document.getElementById('count-label');
+    if (countLabel) countLabel.textContent = `${visible} listing${visible === 1 ? '' : 's'}`;
+  }
+
+  /* ── Delete ── */
+  async function deleteListing(listingId, btn) {
+    if (!window.confirm('ลบ listing นี้ออกจากผลลัพธ์?')) return;
+
+    btn.disabled = true;
+    const orig = btn.innerHTML;
+    btn.innerHTML = '…';
+
+    try {
+      const res  = await fetch(`/results/delete/${listingId}`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Delete failed');
+
+      const card = btn.closest('.prop-card');
+      card?.remove();
+      applyFilter();
+    } catch (err) {
+      window.alert(err.message || 'Delete failed');
+      btn.disabled = false;
+      btn.innerHTML = orig;
+    }
+  }
+</script>
+
+{% endblock %}

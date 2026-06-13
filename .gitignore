@@ -1,0 +1,30 @@
+# Environment
+.env
+env/
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Database
+data/condo.db
+data/condo.db-shm
+data/condo.db-wal
+*.db
+*.db-shm
+*.db-wal
+
+# Output / results
+data/results/
+*.xlsx
+*.csv
+
+# Browser session data
+user_data/
+
+# macOS
+.DS_Store
