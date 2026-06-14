@@ -8,6 +8,10 @@ import asyncio
 import json
 import re
 
+PROVIDER_ID = "propertyhub"
+PROVIDER_NAME = "PropertyHub"
+URL_PATTERN = r"^https?://propertyhub\.in\.th/[^/]+/[^/]+"
+
 import httpx
 
 _HEADERS = {

@@ -1,11 +1,11 @@
-"""Background asyncio task that polls PropertyHub watches on their intervals."""
+"""Background asyncio task that polls provider watches on their intervals."""
 import asyncio
 import random
 import time
 
 import database.db as db
 from alerts.notify import notify_ph_listing
-from scraper.propertyhub import scrape_project
+from scraper.registry import PROVIDERS
 from web import state
 
 _LOOP_SLEEP = 60  # seconds between poll-loop wakeups
@@ -54,7 +54,12 @@ async def _scrape_watch(watch):
     watch_id = watch["id"]
     state.ph_poller["currently_scraping"].add(watch_id)
     try:
-        listings = await scrape_project(
+        provider_id = watch["provider_id"] or "propertyhub"
+        provider = PROVIDERS.get(provider_id)
+        if provider is None:
+            print(f"[ph_poller] watch {watch_id} unknown provider_id={provider_id!r}, skipping")
+            return
+        listings = await provider.scrape_project(
             project_url=watch["project_url"],
             min_price=watch["min_price"],
             max_price=watch["max_price"],
