@@ -63,13 +63,14 @@ async def _scrape_watch(watch):
         )
         for lst in listings:
             try:
-                ph_id, is_new = db.upsert_ph_listing(watch_id, lst)
-                if is_new:
+                ph_id, is_new, is_price_drop, is_muted, prev_rent = db.upsert_ph_listing(watch_id, lst)
+                if (is_new or is_price_drop) and not is_muted:
                     notify_ph_listing(
                         title=lst.get("title"),
                         rent=lst.get("monthly_rent"),
                         size=lst.get("size_sqm"),
                         floor=lst.get("floor"),
+                        prev_rent=prev_rent,
                     )
                     db.set_ph_listing_alerted(ph_id)
             except Exception as e:

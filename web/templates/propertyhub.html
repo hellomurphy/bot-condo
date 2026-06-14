@@ -192,6 +192,26 @@
     font-size: 1rem;
     font-weight: 700;
     color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .ph-card-price .old-rent {
+    font-size: .8rem;
+    font-weight: 400;
+    color: var(--muted);
+    text-decoration: line-through;
+  }
+  .badge-price-drop {
+    font-size: .65rem;
+    font-weight: 600;
+    background: rgba(239,68,68,.15);
+    color: #F87171;
+    border: 1px solid rgba(239,68,68,.3);
+    border-radius: 4px;
+    padding: 1px 5px;
+    letter-spacing: .02em;
   }
   .ph-card-meta {
     display: flex;
@@ -481,7 +501,11 @@ function buildCard(lst) {
     <div class="ph-card-body">
       <div class="ph-card-badges">${badgesHtml}</div>
       <div class="ph-card-title">${lst.title || 'ไม่มีชื่อ'}</div>
-      <div class="ph-card-price">${fmtRent(lst.monthly_rent)}</div>
+      <div class="ph-card-price">
+        ${lst.prev_monthly_rent ? `<s class="old-rent">${fmtRent(lst.prev_monthly_rent)}</s>` : ''}
+        ${fmtRent(lst.monthly_rent)}
+        ${lst.prev_monthly_rent ? `<span class="badge-price-drop">📉 ราคาลด</span>` : ''}
+      </div>
       <div class="ph-card-meta">${metaParts.map(p => `<span>${p}</span>`).join('')}</div>
       <div class="ph-card-updated">เลื่อนล่าสุด ${fmtUpdated(lst.refreshed_at)}</div>
       <div class="ph-card-actions">

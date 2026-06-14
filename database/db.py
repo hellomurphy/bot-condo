@@ -178,6 +178,10 @@ def init_db():
             conn.execute("ALTER TABLE ph_listings ADD COLUMN is_read INTEGER NOT NULL DEFAULT 0")
         except Exception:
             pass  # column already exists
+        try:
+            conn.execute("ALTER TABLE ph_listings ADD COLUMN prev_monthly_rent INTEGER")
+        except Exception:
+            pass  # column already exists
 
 
 # --- Run helpers ---
@@ -539,33 +543,53 @@ def update_ph_watch(watch_id: int, data: dict):
 
 # --- PropertyHub listing helpers ---
 
-def upsert_ph_listing(watch_id: int, data: dict) -> tuple[int, bool]:
-    """Returns (ph_listing_id, is_new). Preserves alerted_at and muted_at on update."""
+def upsert_ph_listing(watch_id: int, data: dict) -> tuple[int, bool, bool, bool, int | None]:
+    """Returns (ph_listing_id, is_new, is_price_drop, is_muted, prev_rent).
+    Preserves alerted_at/is_read unless price dropped (resets both to alert again).
+    prev_rent is the old price before the drop, or None if not a price drop.
+    """
     with transaction() as conn:
         row = conn.execute(
-            "SELECT id FROM ph_listings WHERE watch_id=? AND listing_id=?",
+            "SELECT id, monthly_rent, prev_monthly_rent, muted_at FROM ph_listings "
+            "WHERE watch_id=? AND listing_id=?",
             (watch_id, data["listing_id"])
         ).fetchone()
         if row:
+            old_rent = row["monthly_rent"]
+            new_rent = data.get("monthly_rent")
+            is_price_drop = (
+                old_rent is not None
+                and new_rent is not None
+                and new_rent < old_rent
+            )
+            # Only overwrite prev_monthly_rent when price drops; keep old value on price rise
+            prev_rent_to_save = old_rent if is_price_drop else row["prev_monthly_rent"]
+            is_muted = row["muted_at"] is not None
+
             conn.execute("""
                 UPDATE ph_listings SET
-                    listing_url=?, title=?, monthly_rent=?, size_sqm=?,
-                    floor=?, room_type=?, cover_image_url=?, refreshed_at=?,
+                    listing_url=?, title=?, monthly_rent=?, prev_monthly_rent=?,
+                    size_sqm=?, floor=?, room_type=?, cover_image_url=?, refreshed_at=?,
+                    alerted_at = CASE WHEN ? THEN NULL ELSE alerted_at END,
+                    is_read    = CASE WHEN ? THEN 0    ELSE is_read    END,
                     last_seen_at=?
                 WHERE id=?
             """, (
                 data.get("listing_url"),
                 data.get("title"),
-                data.get("monthly_rent"),
+                new_rent,
+                prev_rent_to_save,
                 data.get("size_sqm"),
                 data.get("floor"),
                 data.get("room_type"),
                 data.get("cover_image_url"),
                 data.get("refreshed_at"),
+                is_price_drop,
+                is_price_drop,
                 _now(),
                 row["id"],
             ))
-            return row["id"], False
+            return row["id"], False, is_price_drop, is_muted, (old_rent if is_price_drop else None)
         else:
             cur = conn.execute("""
                 INSERT INTO ph_listings (
@@ -587,7 +611,7 @@ def upsert_ph_listing(watch_id: int, data: dict) -> tuple[int, bool]:
                 _now(),
                 _now(),
             ))
-            return cur.lastrowid, True
+            return cur.lastrowid, True, False, False, None
 
 
 def get_ph_listings_for_watch(watch_id: int) -> list[sqlite3.Row]:

@@ -9,17 +9,23 @@ def _osascript_notify(title: str, message: str):
     subprocess.run(["osascript", "-e", script], capture_output=True)
 
 
-def notify_ph_listing(title: str | None, rent: int | None, size: float | None, floor: str | None):
+def notify_ph_listing(title: str | None, rent: int | None, size: float | None, floor: str | None, prev_rent: int | None = None):
     name = title or "ห้องใหม่จาก PropertyHub"
     parts = []
-    if rent:
-        parts.append(f"฿{rent:,}/เดือน")
+    if rent is not None:
+        rent_w = f"฿{int(rent):,}"
+        if prev_rent is not None:
+            prev_w = f"฿{int(prev_rent):,}"
+            parts.append(f"{prev_w} → {rent_w}/เดือน")
+        else:
+            parts.append(f"{rent_w}/เดือน")
     if size:
         parts.append(f"{size} ตร.ม.")
     if floor:
         parts.append(f"ชั้น {floor}")
+    header = "PropertyHub — ราคาลด!" if prev_rent is not None else "PropertyHub — พบห้องใหม่!"
     msg = f"{name} | {' | '.join(parts)}" if parts else name
-    _osascript_notify("PropertyHub — พบห้องใหม่!", msg)
+    _osascript_notify(header, msg)
 
 
 def notify_listing(condo_name: str | None, score: float, rent: float | None):
