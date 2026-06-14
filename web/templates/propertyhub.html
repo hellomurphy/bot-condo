@@ -3,6 +3,35 @@
 
 {% block head %}
 <style>
+  /* ── URL row (copied from index.html — not in base.html) ── */
+  .url-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .url-row input { flex: 1; margin: 0; }
+  .icon-btn {
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    width: 34px;
+    height: 36px;
+    cursor: pointer;
+    font-size: .85rem;
+    color: var(--muted);
+    line-height: 1;
+    transition: border-color .15s, color .15s, background .15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .icon-btn:hover {
+    border-color: var(--border-hi);
+    color: var(--text);
+    background: var(--surface2);
+  }
+
   /* ── PropertyHub page extras ── */
   .ph-two-col {
     display: flex;
