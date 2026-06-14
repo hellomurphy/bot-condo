@@ -138,6 +138,40 @@ def init_db():
                 alerted_at      TEXT,
                 scored_at       TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS ph_watches (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_url      TEXT NOT NULL UNIQUE,
+                label            TEXT,
+                min_price        INTEGER,
+                max_price        INTEGER,
+                min_size_sqm     REAL,
+                min_floor        INTEGER,
+                interval_minutes INTEGER NOT NULL DEFAULT 30,
+                active           INTEGER NOT NULL DEFAULT 1,
+                created_at       TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS ph_listings (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                watch_id        INTEGER NOT NULL REFERENCES ph_watches(id) ON DELETE CASCADE,
+                listing_id      TEXT NOT NULL,
+                listing_url     TEXT NOT NULL,
+                title           TEXT,
+                monthly_rent    INTEGER,
+                size_sqm        REAL,
+                floor           TEXT,
+                room_type       TEXT,
+                cover_image_url TEXT,
+                refreshed_at    TEXT,
+                first_seen_at   TEXT NOT NULL,
+                last_seen_at    TEXT NOT NULL,
+                alerted_at      TEXT,
+                muted_at        TEXT,
+                UNIQUE(watch_id, listing_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_ph_listings_watch_id ON ph_listings(watch_id);
         """)
 
 
@@ -422,3 +456,171 @@ def cleanup_old_posts(days: int):
         conn.execute("DELETE FROM listings WHERE post_ref IN (SELECT id FROM posts WHERE scraped_at < datetime('now', ?))", (cutoff,))
         conn.execute("DELETE FROM post_images WHERE post_ref IN (SELECT id FROM posts WHERE scraped_at < datetime('now', ?))", (cutoff,))
         conn.execute("DELETE FROM posts WHERE scraped_at < datetime('now', ?)", (cutoff,))
+
+
+# --- PropertyHub watch helpers ---
+
+def upsert_ph_watch(data: dict) -> int:
+    with transaction() as conn:
+        conn.execute("""
+            INSERT INTO ph_watches (project_url, label, min_price, max_price,
+                min_size_sqm, min_floor, interval_minutes, active, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+            ON CONFLICT(project_url) DO UPDATE SET
+                label=excluded.label,
+                min_price=excluded.min_price,
+                max_price=excluded.max_price,
+                min_size_sqm=excluded.min_size_sqm,
+                min_floor=excluded.min_floor,
+                interval_minutes=excluded.interval_minutes,
+                active=1
+        """, (
+            data["project_url"],
+            data.get("label"),
+            data.get("min_price"),
+            data.get("max_price"),
+            data.get("min_size_sqm"),
+            data.get("min_floor"),
+            data.get("interval_minutes", 30),
+            _now(),
+        ))
+        row = conn.execute(
+            "SELECT id FROM ph_watches WHERE project_url=?", (data["project_url"],)
+        ).fetchone()
+        return row["id"]
+
+
+def get_ph_watches(active_only: bool = True) -> list[sqlite3.Row]:
+    conn = get_connection()
+    if active_only:
+        rows = conn.execute(
+            "SELECT * FROM ph_watches WHERE active=1 ORDER BY id"
+        ).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM ph_watches ORDER BY id").fetchall()
+    conn.close()
+    return rows
+
+
+def get_ph_watch(watch_id: int) -> sqlite3.Row | None:
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM ph_watches WHERE id=?", (watch_id,)).fetchone()
+    conn.close()
+    return row
+
+
+def delete_ph_watch(watch_id: int):
+    with transaction() as conn:
+        conn.execute("DELETE FROM ph_watches WHERE id=?", (watch_id,))
+
+
+def update_ph_watch(watch_id: int, data: dict):
+    with transaction() as conn:
+        conn.execute("""
+            UPDATE ph_watches SET
+                min_price=?, max_price=?, min_size_sqm=?, min_floor=?,
+                interval_minutes=?, label=?
+            WHERE id=?
+        """, (
+            data.get("min_price"),
+            data.get("max_price"),
+            data.get("min_size_sqm"),
+            data.get("min_floor"),
+            data.get("interval_minutes", 30),
+            data.get("label"),
+            watch_id,
+        ))
+
+
+# --- PropertyHub listing helpers ---
+
+def upsert_ph_listing(watch_id: int, data: dict) -> tuple[int, bool]:
+    """Returns (ph_listing_id, is_new). Preserves alerted_at and muted_at on update."""
+    with transaction() as conn:
+        row = conn.execute(
+            "SELECT id FROM ph_listings WHERE watch_id=? AND listing_id=?",
+            (watch_id, data["listing_id"])
+        ).fetchone()
+        if row:
+            conn.execute("""
+                UPDATE ph_listings SET
+                    listing_url=?, title=?, monthly_rent=?, size_sqm=?,
+                    floor=?, room_type=?, cover_image_url=?, refreshed_at=?,
+                    last_seen_at=?
+                WHERE id=?
+            """, (
+                data.get("listing_url"),
+                data.get("title"),
+                data.get("monthly_rent"),
+                data.get("size_sqm"),
+                data.get("floor"),
+                data.get("room_type"),
+                data.get("cover_image_url"),
+                data.get("refreshed_at"),
+                _now(),
+                row["id"],
+            ))
+            return row["id"], False
+        else:
+            cur = conn.execute("""
+                INSERT INTO ph_listings (
+                    watch_id, listing_id, listing_url, title, monthly_rent,
+                    size_sqm, floor, room_type, cover_image_url, refreshed_at,
+                    first_seen_at, last_seen_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                watch_id,
+                data["listing_id"],
+                data.get("listing_url"),
+                data.get("title"),
+                data.get("monthly_rent"),
+                data.get("size_sqm"),
+                data.get("floor"),
+                data.get("room_type"),
+                data.get("cover_image_url"),
+                data.get("refreshed_at"),
+                _now(),
+                _now(),
+            ))
+            return cur.lastrowid, True
+
+
+def get_ph_listings_for_watch(watch_id: int) -> list[sqlite3.Row]:
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT * FROM ph_listings WHERE watch_id=?
+        ORDER BY first_seen_at DESC
+    """, (watch_id,)).fetchall()
+    conn.close()
+    return rows
+
+
+def get_ph_listing(listing_id: int) -> sqlite3.Row | None:
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM ph_listings WHERE id=?", (listing_id,)).fetchone()
+    conn.close()
+    return row
+
+
+def set_ph_listing_alerted(listing_id: int):
+    with transaction() as conn:
+        conn.execute(
+            "UPDATE ph_listings SET alerted_at=? WHERE id=?",
+            (_now(), listing_id)
+        )
+
+
+def set_ph_listing_muted(listing_id: int):
+    with transaction() as conn:
+        conn.execute(
+            "UPDATE ph_listings SET muted_at=? WHERE id=?",
+            (_now(), listing_id)
+        )
+
+
+def clear_ph_listing_muted(listing_id: int):
+    with transaction() as conn:
+        conn.execute(
+            "UPDATE ph_listings SET muted_at=NULL WHERE id=?",
+            (listing_id,)
+        )
