@@ -16,12 +16,29 @@
       grid-template-columns: 360px 1fr;
       gap: 20px;
       align-items: start;
-      padding: 16px 0 24px;
+      padding: 16px 0 0;
+      height: calc(100dvh - var(--header-h, 57px));
     }
   }
 
   /* Left panel */
-  .ph-left { display: flex; flex-direction: column; gap: 0; }
+  .ph-left {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  @media (min-width: 768px) {
+    .ph-left {
+      height: 100%;
+      overflow-y: auto;
+      padding-bottom: 24px;
+    }
+    .ph-right {
+      height: 100%;
+      overflow-y: auto;
+      padding-bottom: 24px;
+    }
+  }
 
   /* Watch card */
   .watch-item {
@@ -355,7 +372,7 @@
   </div>
 
   <!-- ── Right: Listings panel ── -->
-  <div style="padding-top:16px">
+  <div class="ph-right" style="padding-top:16px">
     <div class="ph-filter-bar" id="filter-bar">
       <button class="filter-pill active" data-filter="all" onclick="setFilter('all', this)">ทั้งหมด</button>
       <button class="filter-pill" data-filter="new" onclick="setFilter('new', this)">ใหม่</button>
