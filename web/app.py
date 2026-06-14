@@ -17,6 +17,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from web import state, scrape_runner, forms, db_queries
+from web import ph_routes
 from output.excel import export_excel
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -49,6 +50,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.include_router(ph_routes.router)
 
 
 @app.get("/", response_class=HTMLResponse)
