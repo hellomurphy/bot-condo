@@ -171,14 +171,23 @@ bot-condo/
 
 ---
 
-## PropertyHub Monitor
+## Providers Monitor
 
-In addition to the Facebook scraper, the bot includes a **PropertyHub Monitor** for tracking rental listings on [propertyhub.in.th](https://propertyhub.in.th) directly.
+In addition to the Facebook scraper, the bot includes a **Providers Monitor** for tracking rental listings on property listing sites directly.
+
+### Supported providers
+
+| Provider | Site | Technique |
+|---|---|---|
+| PropertyHub | [propertyhub.in.th](https://propertyhub.in.th) | Extracts `__NEXT_DATA__` JSON (no browser needed) |
+| LivingInsider | [livinginsider.com](https://www.livinginsider.com) | Parses server-rendered HTML cards with BeautifulSoup |
+
+Adding a new provider requires only a single file in `scraper/` implementing `PROVIDER_ID`, `PROVIDER_NAME`, `URL_PATTERN`, and `scrape_project()` — then one line in `scraper/registry.py`.
 
 ### Usage
 
-1. Open the Web UI at [http://localhost:8000/propertyhub](http://localhost:8000/propertyhub)
-2. Add a watch by pasting a project URL from propertyhub.in.th
+1. Open the Web UI at [http://localhost:8000/providers](http://localhost:8000/providers)
+2. Add a watch by pasting a project URL from any supported provider
 3. Set optional filters: price range, minimum size (sqm), minimum floor, and poll interval (minutes)
 4. The system polls in the background automatically and sends a LINE alert when a new listing passes your filters
 
@@ -186,12 +195,14 @@ In addition to the Facebook scraper, the bot includes a **PropertyHub Monitor** 
 
 | Feature | Details |
 |---|---|
+| Multi-provider | Each watch auto-detects its provider from the URL |
 | Auto-poll | Background loop checks every 60 seconds which watches are due to run |
 | Per-watch interval | Each watch has its own poll interval (default: 30 minutes) |
 | Filters | Min/max price, minimum room size, minimum floor |
 | Read / Unread | Mark listings as read from the UI; unread state persists across refreshes |
 | AJAX refresh | Scan Now and filter changes update the grid without a page reload |
 | LINE alert | Instant notification when a new listing matches your filters |
+| Price drop alert | Re-alerts when an existing listing drops below your max price |
 | URL normalization | Thai percent-encoded URLs are canonicalized automatically |
 
 ### Relevant files
@@ -203,7 +214,9 @@ web/
 └── templates/
     └── propertyhub.html  # Main UI (watches panel + listings grid)
 scraper/
-└── propertyhub.py        # Scraper pulling data from __NEXT_DATA__ JSON
+├── registry.py           # Provider registry — maps provider_id → module
+├── propertyhub.py        # PropertyHub scraper (__NEXT_DATA__ JSON)
+└── livinginsider.py      # LivingInsider scraper (HTML card parsing)
 alerts/
 └── notify.py             # notify_ph_listing() → LINE Notify
 database/
