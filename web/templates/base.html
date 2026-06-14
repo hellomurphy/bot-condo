@@ -417,6 +417,7 @@
     <nav>
       <a href="/" id="nav-home">Home</a>
       <a href="/results" id="nav-results">Results</a>
+      <a href="/propertyhub" id="nav-propertyhub">PropertyHub</a>
     </nav>
   </div>
 </header>
@@ -436,6 +437,7 @@
     const path = location.pathname;
     if (path === '/' || path === '') document.getElementById('nav-home')?.classList.add('active');
     else if (path.startsWith('/results')) document.getElementById('nav-results')?.classList.add('active');
+    else if (path.startsWith('/propertyhub')) document.getElementById('nav-propertyhub')?.classList.add('active');
   })();
 </script>
 </body>
