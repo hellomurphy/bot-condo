@@ -1,5 +1,6 @@
 """Background asyncio task that polls PropertyHub watches on their intervals."""
 import asyncio
+import random
 import time
 
 import database.db as db
@@ -27,6 +28,7 @@ async def _run_all_watches():
         print(f"[ph_poller] failed to load watches: {e}")
         return
 
+    stagger_offset = 0.0
     for watch in watches:
         watch_id = watch["id"]
 
@@ -35,10 +37,17 @@ async def _run_all_watches():
 
         last = state.ph_poller["watch_last_scraped"].get(watch_id)
         interval_sec = (watch["interval_minutes"] or 30) * 60
-        if last is not None and (time.monotonic() - last) < interval_sec:
+        jittered = interval_sec * random.uniform(0.8, 1.2)
+        if last is not None and (time.monotonic() - last) < jittered:
             continue
 
-        asyncio.create_task(_scrape_watch(watch))
+        asyncio.create_task(_staggered_scrape(watch, stagger_offset))
+        stagger_offset += random.uniform(3.0, 6.0)
+
+
+async def _staggered_scrape(watch, delay: float):
+    await asyncio.sleep(delay)
+    await _scrape_watch(watch)
 
 
 async def _scrape_watch(watch):

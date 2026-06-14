@@ -20,7 +20,7 @@ _HEADERS = {
 }
 _IMAGE_CDN = "https://bcdn.propertyhub.in.th"
 _REQUEST_TIMEOUT = 10.0
-_MAX_PAGES = 3  # newest listings cluster on early pages; caps request count
+_MAX_PAGES = 2  # newest listings cluster on early pages; caps request count
 _PAGE_DELAY = 0.8  # seconds between page requests
 
 _ROOM_TYPE_MAP = {
@@ -56,14 +56,15 @@ async def scrape_project(
         if not listings_data:
             raise ValueError(f"No listings found at {project_url} — check the URL is a valid project page")
 
-        raw_items = listings_data.get("data") or []
+        raw_items = listings_data.get("listings") or listings_data.get("data") or []
         total_pages = (listings_data.get("pagination") or {}).get("totalPages", 1)
         pages_to_fetch = min(total_pages, _MAX_PAGES)
 
         for page in range(2, pages_to_fetch + 1):
             await asyncio.sleep(_PAGE_DELAY)
             extra = await _fetch_page_props(client, project_url, page=page)
-            extra_items = (extra.get("listings") or {}).get("data") or []
+            extra_block = extra.get("listings") or {}
+            extra_items = extra_block.get("listings") or extra_block.get("data") or []
             raw_items.extend(extra_items)
 
         results = []
@@ -101,13 +102,10 @@ async def _fetch_page_props(client: httpx.AsyncClient, base_url: str, page: int)
 
 def _parse_listing(raw: dict) -> dict:
     listing_id = raw.get("id") or raw.get("slug") or ""
-    slug = raw.get("slug", "")
-    project = raw.get("project") or {}
-    project_slug = project.get("slug", "")
 
     listing_url = (
-        f"https://propertyhub.in.th/เช่าคอนโด/{project_slug}/{slug}"
-        if project_slug and slug
+        f"https://propertyhub.in.th/listings/{listing_id}"
+        if listing_id
         else ""
     )
 

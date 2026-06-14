@@ -167,12 +167,17 @@ def init_db():
                 first_seen_at   TEXT NOT NULL,
                 last_seen_at    TEXT NOT NULL,
                 alerted_at      TEXT,
-                muted_at        TEXT,
+                is_read         INTEGER NOT NULL DEFAULT 0,
                 UNIQUE(watch_id, listing_id)
             );
 
             CREATE INDEX IF NOT EXISTS idx_ph_listings_watch_id ON ph_listings(watch_id);
         """)
+        # Migrate existing DB: add is_read if missing, drop muted_at usage gracefully
+        try:
+            conn.execute("ALTER TABLE ph_listings ADD COLUMN is_read INTEGER NOT NULL DEFAULT 0")
+        except Exception:
+            pass  # column already exists
 
 
 # --- Run helpers ---
@@ -610,17 +615,27 @@ def set_ph_listing_alerted(listing_id: int):
         )
 
 
-def set_ph_listing_muted(listing_id: int):
+def set_ph_listing_read(listing_id: int):
     with transaction() as conn:
         conn.execute(
-            "UPDATE ph_listings SET muted_at=? WHERE id=?",
-            (_now(), listing_id)
-        )
-
-
-def clear_ph_listing_muted(listing_id: int):
-    with transaction() as conn:
-        conn.execute(
-            "UPDATE ph_listings SET muted_at=NULL WHERE id=?",
+            "UPDATE ph_listings SET is_read=1 WHERE id=?",
             (listing_id,)
         )
+
+
+def clear_ph_listing_read(listing_id: int):
+    with transaction() as conn:
+        conn.execute(
+            "UPDATE ph_listings SET is_read=0 WHERE id=?",
+            (listing_id,)
+        )
+
+
+def delete_ph_listing(listing_id: int):
+    with transaction() as conn:
+        conn.execute("DELETE FROM ph_listings WHERE id=?", (listing_id,))
+
+
+def delete_ph_listings_for_watch(watch_id: int):
+    with transaction() as conn:
+        conn.execute("DELETE FROM ph_listings WHERE watch_id=?", (watch_id,))

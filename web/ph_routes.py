@@ -41,7 +41,7 @@ def _watch_summary(watch) -> dict:
     listings = db.get_ph_listings_for_watch(watch_id)
     last_ts = state.ph_poller["watch_last_scraped"].get(watch_id)
     w["listing_count"] = len(listings)
-    w["new_count"] = sum(1 for l in listings if l["alerted_at"] is None and l["muted_at"] is None)
+    w["new_count"] = sum(1 for l in listings if l["alerted_at"] is None and not l["is_read"])
     w["last_scraped_ago"] = _seconds_ago(last_ts)
     w["is_scraping"] = watch_id in state.ph_poller["currently_scraping"]
     interval_sec = (w.get("interval_minutes") or 30) * 60
@@ -181,22 +181,40 @@ async def get_watch_listings(watch_id: int):
     return JSONResponse([_listing_to_dict(r) for r in rows])
 
 
-@router.post("/propertyhub/listings/{listing_id}/mute")
-async def mute_listing(listing_id: int):
+@router.post("/propertyhub/watches/{watch_id}/listings/delete-all")
+async def delete_all_listings(watch_id: int):
+    watch = db.get_ph_watch(watch_id)
+    if not watch:
+        return JSONResponse({"error": "ไม่พบ watch"}, status_code=404)
+    db.delete_ph_listings_for_watch(watch_id)
+    return JSONResponse({"status": "deleted", "watch_id": watch_id})
+
+
+@router.post("/propertyhub/listings/{listing_id}/delete")
+async def delete_listing(listing_id: int):
     row = db.get_ph_listing(listing_id)
     if not row:
         return JSONResponse({"error": "ไม่พบ listing"}, status_code=404)
-    db.set_ph_listing_muted(listing_id)
-    return JSONResponse({"status": "muted", "listing_id": listing_id})
+    db.delete_ph_listing(listing_id)
+    return JSONResponse({"status": "deleted", "listing_id": listing_id})
 
 
-@router.post("/propertyhub/listings/{listing_id}/unmute")
-async def unmute_listing(listing_id: int):
+@router.post("/propertyhub/listings/{listing_id}/mark-read")
+async def mark_listing_read(listing_id: int):
     row = db.get_ph_listing(listing_id)
     if not row:
         return JSONResponse({"error": "ไม่พบ listing"}, status_code=404)
-    db.clear_ph_listing_muted(listing_id)
-    return JSONResponse({"status": "unmuted", "listing_id": listing_id})
+    db.set_ph_listing_read(listing_id)
+    return JSONResponse({"status": "read", "listing_id": listing_id})
+
+
+@router.post("/propertyhub/listings/{listing_id}/mark-unread")
+async def mark_listing_unread(listing_id: int):
+    row = db.get_ph_listing(listing_id)
+    if not row:
+        return JSONResponse({"error": "ไม่พบ listing"}, status_code=404)
+    db.clear_ph_listing_read(listing_id)
+    return JSONResponse({"status": "unread", "listing_id": listing_id})
 
 
 # ── Status ─────────────────────────────────────────────────────────────────

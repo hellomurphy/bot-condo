@@ -3,35 +3,6 @@
 
 {% block head %}
 <style>
-  /* ── URL row (copied from index.html — not in base.html) ── */
-  .url-row {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-  }
-  .url-row input { flex: 1; margin: 0; }
-  .icon-btn {
-    flex-shrink: 0;
-    background: none;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    width: 34px;
-    height: 36px;
-    cursor: pointer;
-    font-size: .85rem;
-    color: var(--muted);
-    line-height: 1;
-    transition: border-color .15s, color .15s, background .15s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .icon-btn:hover {
-    border-color: var(--border-hi);
-    color: var(--text);
-    background: var(--surface2);
-  }
-
   /* ── PropertyHub page extras ── */
   .ph-two-col {
     display: flex;
@@ -71,8 +42,8 @@
     font-size: .72rem;
     color: var(--muted);
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 3px;
     margin-bottom: 8px;
   }
   .watch-item-filters {
@@ -140,7 +111,7 @@
     color: var(--accent);
     border-color: rgba(16,185,129,.3);
   }
-  .filter-pill.pill-muted.active {
+  .filter-pill.pill-read.active {
     background: rgba(255,255,255,.05);
     color: var(--muted2);
     border-color: var(--border-hi);
@@ -165,7 +136,7 @@
     border-color: var(--border-hi);
     box-shadow: var(--shadow);
   }
-  .ph-card.is-muted { opacity: .5; }
+  .ph-card.is-read { opacity: .45; }
   .ph-card-img {
     width: 100%;
     height: 140px;
@@ -226,7 +197,7 @@
   }
   .ph-badge-new    { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(16,185,129,.3); }
   .ph-badge-alerted { background: rgba(245,158,11,.15); color: var(--gold); border: 1px solid rgba(245,158,11,.3); }
-  .ph-badge-muted  { background: rgba(255,255,255,.05); color: var(--muted); border: 1px solid var(--border); }
+  .ph-badge-read   { background: rgba(255,255,255,.05); color: var(--muted); border: 1px solid var(--border); }
 
   .ph-card-actions {
     display: flex;
@@ -251,8 +222,8 @@
     justify-content: center;
   }
   .btn-card:hover { background: var(--surface2); color: var(--text); text-decoration: none; }
-  .btn-card.btn-mute { color: var(--muted); }
-  .btn-card.btn-mute.is-muted { color: var(--accent); border-color: rgba(16,185,129,.3); }
+  .btn-card.btn-read { color: var(--muted); }
+  .btn-card.btn-read.is-read { color: var(--accent); border-color: rgba(16,185,129,.3); }
 
   .ph-empty {
     text-align: center;
@@ -307,13 +278,7 @@
           <label>URL โครงการ <span class="req">*</span>
             <span class="hint">จาก propertyhub.in.th</span>
           </label>
-          <div id="ph-url-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px">
-            <div class="url-row">
-              <input type="text" name="project_urls" placeholder="https://propertyhub.in.th/เช่าคอนโด/โครงการ-xxx" required/>
-              <button type="button" class="icon-btn" onclick="removePhUrlRow(this)" title="ลบ">✕</button>
-            </div>
-          </div>
-          <button type="button" class="icon-btn" id="add-ph-url-btn" title="เพิ่ม URL" style="width:100%;border-style:dashed;font-size:1rem">+</button>
+          <input type="text" id="ph-url-input" name="project_url" placeholder="https://propertyhub.in.th/เช่าคอนโด/โครงการ-xxx" required/>
         </div>
         <div class="grid-2">
           <div class="field">
@@ -362,13 +327,12 @@
               {{ w.listing_count }} ห้อง{% if w.new_count > 0 %} · {{ w.new_count }} ใหม่{% endif %}
             </span>
             {% if w.last_scraped_ago %}
-              <span>สแกนล่าสุด {{ w.last_scraped_ago }}</span>
+              <span class="last-scraped-label">สแกนล่าสุด {{ w.last_scraped_ago }}</span>
             {% else %}
-              <span>ยังไม่เคยสแกน</span>
+              <span class="last-scraped-label">ยังไม่เคยสแกน</span>
             {% endif %}
-            {% if w.is_scraping %}
-              <span style="color:var(--accent)"><span class="spinner"></span> กำลังสแกน…</span>
-            {% endif %}
+            <span class="scraping-label" style="color:var(--accent);display:{% if w.is_scraping %}inline{% else %}none{% endif %}"><span class="spinner"></span> กำลังสแกน…</span>
+            <span class="countdown-label" style="color:var(--muted);display:none">ครั้งต่อไปใน <b class="countdown-val">–</b></span>
           </div>
           <div class="watch-item-filters">
             {% if w.min_price or w.max_price %}
@@ -396,8 +360,9 @@
       <button class="filter-pill active" data-filter="all" onclick="setFilter('all', this)">ทั้งหมด</button>
       <button class="filter-pill" data-filter="new" onclick="setFilter('new', this)">ใหม่</button>
       <button class="filter-pill" data-filter="alerted" onclick="setFilter('alerted', this)">แจ้งแล้ว</button>
-      <button class="filter-pill pill-muted" data-filter="muted" onclick="setFilter('muted', this)">ปิดเสียง</button>
+      <button class="filter-pill pill-read" data-filter="read" onclick="setFilter('read', this)">ดูแล้ว</button>
       <span id="listing-total" style="margin-left:auto;font-size:.75rem;color:var(--muted);align-self:center"></span>
+      <button class="btn-xs btn-del" id="delete-all-btn" onclick="deleteAllListings()" style="flex-shrink:0">ลบทั้งหมด</button>
     </div>
 
     <div id="listings-grid" class="ph-grid"></div>
@@ -472,12 +437,12 @@ function fmtUpdated(v) {
 }
 
 function buildCard(lst) {
-  const isMuted = !!lst.muted_at;
+  const isRead = !!lst.is_read;
   const isAlerted = !!lst.alerted_at;
-  const isNew = !isAlerted && !isMuted;
+  const isNew = !isAlerted && !isRead;
 
   let badgesHtml = '';
-  if (isMuted) badgesHtml = '<span class="ph-badge ph-badge-muted">ปิดเสียง</span>';
+  if (isRead) badgesHtml = '<span class="ph-badge ph-badge-read">ดูแล้ว</span>';
   else if (isAlerted) badgesHtml = '<span class="ph-badge ph-badge-alerted">แจ้งแล้ว</span>';
   else badgesHtml = '<span class="ph-badge ph-badge-new">ใหม่</span>';
 
@@ -487,12 +452,12 @@ function buildCard(lst) {
     : `<div class="ph-card-img-placeholder">🏢</div>`;
 
   const metaParts = [fmtSize(lst.size_sqm), fmtFloor(lst.floor), lst.room_type].filter(Boolean);
-  const muteLabel = isMuted ? '🔔 เปิดเสียง' : '🔇 ปิดเสียง';
-  const muteClass = isMuted ? 'btn-card btn-mute is-muted' : 'btn-card btn-mute';
+  const readLabel = isRead ? '↩ ยังไม่ได้ดู' : '✓ ดูแล้ว';
+  const readClass = isRead ? 'btn-card btn-read is-read' : 'btn-card btn-read';
 
-  return `<div class="ph-card ${isMuted ? 'is-muted' : ''}"
+  return `<div class="ph-card ${isRead ? 'is-read' : ''}"
                data-id="${lst.id}"
-               data-muted="${isMuted ? '1' : ''}"
+               data-read="${isRead ? '1' : ''}"
                data-alerted="${isAlerted ? '1' : ''}"
                data-watch="${lst.watch_id}">
     ${imgHtml}
@@ -504,7 +469,8 @@ function buildCard(lst) {
       <div class="ph-card-updated">เลื่อนล่าสุด ${fmtUpdated(lst.refreshed_at)}</div>
       <div class="ph-card-actions">
         <a class="btn-card" href="${lst.listing_url}" target="_blank" rel="noopener">↗ ดูรายการ</a>
-        <button class="${muteClass}" onclick="toggleMute(${lst.id}, this)">${muteLabel}</button>
+        <button class="${readClass}" onclick="toggleRead(${lst.id}, this)">${readLabel}</button>
+        <button class="btn-card btn-del-listing" onclick="deleteListing(${lst.id}, this)" title="ลบ" style="flex:0;padding:6px 10px;color:#F87171;border-color:rgba(239,68,68,.3)">✕</button>
       </div>
     </div>
   </div>`;
@@ -524,9 +490,9 @@ function renderGrid(listings) {
 
 function applyFilter(filter) {
   let visible = _listings;
-  if (filter === 'new')     visible = _listings.filter(l => !l.alerted_at && !l.muted_at);
-  if (filter === 'alerted') visible = _listings.filter(l => !!l.alerted_at && !l.muted_at);
-  if (filter === 'muted')   visible = _listings.filter(l => !!l.muted_at);
+  if (filter === 'new')     visible = _listings.filter(l => !l.alerted_at && !l.is_read);
+  if (filter === 'alerted') visible = _listings.filter(l => !!l.alerted_at && !l.is_read);
+  if (filter === 'read')    visible = _listings.filter(l => !!l.is_read);
   renderGrid(visible);
   document.getElementById('listing-total').textContent = visible.length + ' รายการ';
 }
@@ -541,21 +507,20 @@ function setFilter(filter, btn) {
 // Initial render
 applyFilter('all');
 
-// ── Mute toggle ─────────────────────────────────────────────────────────
+// ── Read toggle ──────────────────────────────────────────────────────────
 
-async function toggleMute(listingId, btn) {
+async function toggleRead(listingId, btn) {
   const card = btn.closest('.ph-card');
-  const isMuted = card.dataset.muted === '1';
-  const endpoint = isMuted
-    ? `/propertyhub/listings/${listingId}/unmute`
-    : `/propertyhub/listings/${listingId}/mute`;
+  const isRead = card.dataset.read === '1';
+  const endpoint = isRead
+    ? `/propertyhub/listings/${listingId}/mark-unread`
+    : `/propertyhub/listings/${listingId}/mark-read`;
   try {
     const res = await fetch(endpoint, { method: 'POST' });
     if (!res.ok) throw new Error(await res.text());
-    // Update local data
     const lst = _listings.find(l => l.id === listingId);
     if (lst) {
-      lst.muted_at = isMuted ? null : new Date().toISOString();
+      lst.is_read = isRead ? 0 : 1;
     }
     applyFilter(_currentFilter);
   } catch (e) {
@@ -602,7 +567,7 @@ function updateWatchBadge(watchId, listings) {
   const item = document.querySelector(`.watch-item[data-watch-id="${watchId}"]`);
   if (!item) return;
   const total = listings.length;
-  const newCount = listings.filter(l => !l.alerted_at && !l.muted_at).length;
+  const newCount = listings.filter(l => !l.alerted_at && !l.is_read).length;
   const badge = item.querySelector('.watch-count-badge');
   if (badge) {
     badge.textContent = total + ' ห้อง' + (newCount > 0 ? ` · ${newCount} ใหม่` : '');
@@ -610,32 +575,93 @@ function updateWatchBadge(watchId, listings) {
   }
 }
 
-// Auto-refresh every 60s
+// ── Status polling + countdown ────────────────────────────────────────────
+
+// countdown state: watch_id -> { nextInSec, fetchedAt }
+const _countdowns = {};
+
+function fmtCountdown(sec) {
+  if (sec <= 0) return 'กำลังจะสแกน…';
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m > 0 ? `${m}:${String(s).padStart(2,'0')} นาที` : `${s} วิ`;
+}
+
+function applyStatusToWatchCard(w) {
+  const item = document.querySelector(`.watch-item[data-watch-id="${w.id}"]`);
+  if (!item) return;
+
+  const scrapingEl = item.querySelector('.scraping-label');
+  const countdownEl = item.querySelector('.countdown-label');
+  const lastEl = item.querySelector('.last-scraped-label');
+
+  if (w.is_scraping) {
+    if (scrapingEl) scrapingEl.style.display = 'inline';
+    if (countdownEl) countdownEl.style.display = 'none';
+  } else {
+    if (scrapingEl) scrapingEl.style.display = 'none';
+    if (countdownEl) {
+      const hasNext = (w.next_in_seconds != null);
+      countdownEl.style.display = hasNext ? 'inline' : 'none';
+      if (hasNext) {
+        const val = countdownEl.querySelector('.countdown-val');
+        if (val) val.textContent = fmtCountdown(w.next_in_seconds || 0);
+      }
+    }
+  }
+
+  if (lastEl && w.last_scraped_ago) {
+    lastEl.textContent = 'สแกนล่าสุด ' + w.last_scraped_ago;
+  }
+
+  // store snapshot for local tick (key always string for Object.entries compat)
+  _countdowns[String(w.id)] = {
+    nextInSec: w.next_in_seconds || 0,
+    fetchedAt: Date.now(),
+    isScraping: !!w.is_scraping,
+  };
+}
+
+// Tick every second to count down locally without hitting server
+setInterval(() => {
+  for (const [watchId, snap] of Object.entries(_countdowns)) {
+    if (snap.isScraping) continue;
+    const elapsed = Math.floor((Date.now() - snap.fetchedAt) / 1000);
+    const remaining = Math.max(0, snap.nextInSec - elapsed);
+    const item = document.querySelector(`.watch-item[data-watch-id="${watchId}"]`);
+    if (!item) continue;
+    const val = item.querySelector('.countdown-val');
+    if (val) val.textContent = fmtCountdown(remaining);
+  }
+}, 1000);
+
+async function pollStatus() {
+  try {
+    const res = await fetch('/propertyhub/status');
+    if (!res.ok) return;
+    const data = await res.json();
+    for (const w of (data.watches || [])) {
+      applyStatusToWatchCard(w);
+      // if scraping just finished, refresh listings
+      const prev = _countdowns[w.id];
+      if (prev && prev.isScraping && !w.is_scraping) {
+        refreshListings(w.id);
+      }
+    }
+    // Update _watches to reflect latest state
+    _watches = data.watches || _watches;
+  } catch (e) { /* silent */ }
+}
+
+// Poll status every 5s; refresh listings every 60s
+setInterval(pollStatus, 5000);
 setInterval(async () => {
   for (const w of _watches) {
     await refreshListings(w.id);
   }
 }, 60000);
 
-// ── URL list helpers ──────────────────────────────────────────────────────
-
-function addPhUrlRow(value = '') {
-  const list = document.getElementById('ph-url-list');
-  const row = document.createElement('div');
-  row.className = 'url-row';
-  row.innerHTML = `<input type="text" name="project_urls" value="${value.replace(/"/g,'&quot;')}"
-    placeholder="https://propertyhub.in.th/เช่าคอนโด/โครงการ-xxx"/>
-    <button type="button" class="icon-btn" onclick="removePhUrlRow(this)" title="ลบ">✕</button>`;
-  list.appendChild(row);
-  row.querySelector('input').focus();
-}
-
-function removePhUrlRow(btn) {
-  const list = document.getElementById('ph-url-list');
-  if (list.children.length > 1) btn.closest('.url-row').remove();
-}
-
-document.getElementById('add-ph-url-btn').addEventListener('click', () => addPhUrlRow());
+// Kick off first status poll immediately
+pollStatus();
 
 // ── Add watch ─────────────────────────────────────────────────────────────
 
@@ -645,54 +671,24 @@ document.getElementById('add-watch-form').addEventListener('submit', async (e) =
   const errEl = document.getElementById('add-watch-err');
   errEl.classList.add('hidden');
 
-  const urls = [...document.querySelectorAll('#ph-url-list input[name="project_urls"]')]
-    .map(i => i.value.trim()).filter(Boolean);
-  if (!urls.length) {
-    errEl.textContent = 'กรุณากรอก URL อย่างน้อย 1 รายการ';
-    errEl.classList.remove('hidden');
-    return;
-  }
-
   btn.disabled = true;
-  btn.textContent = `กำลังเพิ่ม 0/${urls.length}…`;
+  btn.textContent = 'กำลังเพิ่ม…';
 
-  const baseData = new FormData(e.target);
-  const errors = [];
-  let added = 0;
-
-  for (let i = 0; i < urls.length; i++) {
-    btn.textContent = `กำลังเพิ่ม ${i + 1}/${urls.length}…`;
-    const fd = new FormData();
-    fd.append('project_url', urls[i]);
-    for (const [k, v] of baseData.entries()) {
-      if (k !== 'project_urls') fd.append(k, v);
+  const fd = new FormData(e.target);
+  try {
+    const res = await fetch('/propertyhub/watches', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'เกิดข้อผิดพลาด';
+      errEl.classList.remove('hidden');
+    } else {
+      _watches.push(data.watch);
+      appendWatchItem(data.watch);
+      document.getElementById('ph-url-input').value = '';
     }
-    try {
-      const res = await fetch('/propertyhub/watches', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (!res.ok) {
-        errors.push(`${urls[i]}: ${data.error || 'เกิดข้อผิดพลาด'}`);
-      } else {
-        _watches.push(data.watch);
-        appendWatchItem(data.watch);
-        added++;
-      }
-    } catch (err) {
-      errors.push(`${urls[i]}: ${err.message}`);
-    }
-  }
-
-  if (errors.length) {
-    errEl.innerHTML = errors.map(s => `<div>${s}</div>`).join('');
+  } catch (err) {
+    errEl.textContent = err.message;
     errEl.classList.remove('hidden');
-  }
-  if (added > 0) {
-    // Reset only the URL list; keep filter values
-    const list = document.getElementById('ph-url-list');
-    list.innerHTML = `<div class="url-row">
-      <input type="text" name="project_urls" placeholder="https://propertyhub.in.th/เช่าคอนโด/โครงการ-xxx"/>
-      <button type="button" class="icon-btn" onclick="removePhUrlRow(this)" title="ลบ">✕</button>
-    </div>`;
   }
 
   btn.disabled = false;
@@ -721,7 +717,9 @@ function appendWatchItem(w) {
     <div class="watch-item-label">${label}</div>
     <div class="watch-item-meta">
       <span class="watch-count-badge">0 ห้อง</span>
-      <span>ยังไม่เคยสแกน</span>
+      <span class="last-scraped-label">ยังไม่เคยสแกน</span>
+      <span class="scraping-label" style="color:var(--accent);display:none"><span class="spinner"></span> กำลังสแกน…</span>
+      <span class="countdown-label" style="color:var(--muted);display:none">ครั้งต่อไปใน <b class="countdown-val">–</b></span>
     </div>
     <div class="watch-item-filters">${filterStr}</div>
     <div class="watch-item-actions">
@@ -749,6 +747,43 @@ async function deleteWatch(watchId, btn) {
         <div class="ph-empty-icon">🔍</div><div>ยังไม่มีโครงการ</div></div>`;
     }
   } catch (e) { alert('เกิดข้อผิดพลาด: ' + e.message); }
+}
+
+// ── Delete listing ────────────────────────────────────────────────────────
+
+async function deleteListing(listingId, btn) {
+  try {
+    const res = await fetch(`/propertyhub/listings/${listingId}/delete`, { method: 'POST' });
+    if (!res.ok) throw new Error(await res.text());
+    _listings = _listings.filter(l => l.id !== listingId);
+    applyFilter(_currentFilter);
+  } catch (e) {
+    alert('เกิดข้อผิดพลาด: ' + e.message);
+  }
+}
+
+async function deleteAllListings() {
+  const watchIds = [...new Set(_listings.map(l => l.watch_id))];
+  if (!watchIds.length) return;
+  if (!confirm(`ลบห้องทั้งหมด ${_listings.length} รายการหรือไม่?`)) return;
+  const btn = document.getElementById('delete-all-btn');
+  btn.disabled = true;
+  try {
+    await Promise.all(watchIds.map(id =>
+      fetch(`/propertyhub/watches/${id}/listings/delete-all`, { method: 'POST' })
+    ));
+    _listings = [];
+    applyFilter(_currentFilter);
+    // reset badges
+    document.querySelectorAll('.watch-item').forEach(item => {
+      const badge = item.querySelector('.watch-count-badge');
+      if (badge) { badge.textContent = '0 ห้อง'; badge.classList.remove('has-new'); }
+    });
+  } catch (e) {
+    alert('เกิดข้อผิดพลาด: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ── Edit modal ────────────────────────────────────────────────────────────

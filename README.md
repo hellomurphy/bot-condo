@@ -171,6 +171,47 @@ bot-condo/
 
 ---
 
+## PropertyHub Monitor
+
+นอกจาก Facebook scraper แล้ว bot ยังมี **PropertyHub Monitor** สำหรับติดตามประกาศเช่าบน [propertyhub.in.th](https://propertyhub.in.th) โดยเฉพาะ
+
+### วิธีใช้งาน
+
+1. เปิด Web UI ที่ [http://localhost:8000/propertyhub](http://localhost:8000/propertyhub)
+2. กด **+ Add Watch** และกรอก URL โครงการจาก propertyhub.in.th (รองรับหลาย URL ต่อ watch)
+3. ตั้ง filter ตามต้องการ: ราคา, ขนาด (ตร.ม.), ชั้น, และรอบ poll (นาที)
+4. ระบบจะ poll ในพื้นหลังอัตโนมัติ และแจ้งเตือน LINE เมื่อพบห้องใหม่ที่ผ่าน filter
+
+### ฟีเจอร์
+
+| ฟีเจอร์ | รายละเอียด |
+|---|---|
+| Auto-poll | Background loop ทุก 60 วินาที ตรวจว่า watch ไหนถึงเวลา poll |
+| Per-watch interval | กำหนด interval แยกกันได้ต่อ watch (default 30 นาที) |
+| Filter | ราคา min/max, ขนาดห้อง, ชั้นต่ำสุด |
+| Mute | ปิดการแจ้งเตือนรายการที่ไม่สนใจได้จากหน้า UI |
+| AJAX refresh | กด Refresh หรือ Scan Now โดยไม่ต้อง reload หน้า |
+| LINE alert | แจ้งเตือนทันทีเมื่อพบห้องใหม่ที่ตรงกับ filter |
+| URL normalization | แปลง URL ภาษาไทย (percent-encoded) ให้เป็น canonical อัตโนมัติ |
+
+### ไฟล์ที่เกี่ยวข้อง
+
+```
+web/
+├── ph_routes.py          # FastAPI router: CRUD watches, listing endpoints
+├── ph_poller.py          # Background asyncio poll loop
+└── templates/
+    └── propertyhub.html  # หน้า UI หลัก (watches + listings table)
+scraper/
+└── propertyhub.py        # Scraper ดึงข้อมูลจาก __NEXT_DATA__ JSON
+alerts/
+└── notify.py             # notify_ph_listing() → LINE Notify
+database/
+└── db.py                 # ph_watches / ph_listings tables + CRUD helpers
+```
+
+---
+
 ## Notes
 
 - The bot reads **public Facebook group posts** only — it does not interact with or modify any content.
