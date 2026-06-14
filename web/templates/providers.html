@@ -1,0 +1,930 @@
+{% extends "base.html" %}
+{% block title %}Providers — Condo Radar{% endblock %}
+
+{% block head %}
+<style>
+  /* ── Providers page extras ── */
+  .ph-two-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px 0 24px;
+  }
+  @media (min-width: 768px) {
+    .ph-two-col {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 20px;
+      align-items: start;
+      padding: 16px 0 0;
+      height: calc(100dvh - var(--header-h, 57px));
+    }
+  }
+
+  /* Left panel */
+  .ph-left {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  @media (min-width: 768px) {
+    .ph-left {
+      height: 100%;
+      overflow-y: auto;
+      padding-bottom: 24px;
+    }
+    .ph-right {
+      height: 100%;
+      overflow-y: auto;
+      padding-bottom: 24px;
+    }
+  }
+
+  /* Watch card */
+  .watch-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    margin-bottom: 8px;
+  }
+  .watch-item-label {
+    font-size: .88rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+    word-break: break-all;
+  }
+  .watch-item-meta {
+    font-size: .72rem;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-bottom: 8px;
+  }
+  .watch-item-filters {
+    font-size: .7rem;
+    color: var(--muted2);
+    margin-bottom: 8px;
+  }
+  .watch-item-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .btn-xs {
+    padding: 4px 10px;
+    font-size: .75rem;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 1px solid var(--border-hi);
+    background: transparent;
+    color: var(--muted2);
+    cursor: pointer;
+    transition: background .15s, color .15s;
+    width: auto;
+  }
+  .btn-xs:hover { background: var(--surface); color: var(--text); }
+  .btn-xs.btn-scan { color: var(--accent); border-color: rgba(16,185,129,.3); }
+  .btn-xs.btn-scan:hover { background: var(--accent-dim); }
+  .btn-xs.btn-del { color: #F87171; border-color: rgba(239,68,68,.3); }
+  .btn-xs.btn-del:hover { background: rgba(239,68,68,.1); }
+  .watch-count-badge {
+    display: inline-block;
+    background: var(--accent-dim);
+    color: var(--accent);
+    border-radius: 10px;
+    font-size: .68rem;
+    font-weight: 700;
+    padding: 1px 7px;
+  }
+  .watch-count-badge.has-new {
+    background: rgba(245,158,11,.15);
+    color: var(--gold);
+    box-shadow: 0 0 6px var(--gold-glow);
+  }
+
+  /* Right panel — listings grid */
+  .ph-filter-bar {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .filter-pill {
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: .75rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border-hi);
+    background: transparent;
+    color: var(--muted2);
+    transition: all .15s;
+  }
+  .filter-pill.active, .filter-pill:hover {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border-color: rgba(16,185,129,.3);
+  }
+  .filter-pill.pill-read.active {
+    background: rgba(255,255,255,.05);
+    color: var(--muted2);
+    border-color: var(--border-hi);
+  }
+
+  /* Listing card */
+  .ph-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+  }
+  .ph-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .ph-card:hover {
+    border-color: var(--border-hi);
+    box-shadow: var(--shadow);
+  }
+  .ph-card.is-read { opacity: .45; }
+  .ph-card-img {
+    width: 100%;
+    height: 140px;
+    object-fit: cover;
+    background: var(--surface2);
+    display: block;
+  }
+  .ph-card-img-placeholder {
+    width: 100%;
+    height: 140px;
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: var(--muted);
+  }
+  .ph-card-body {
+    padding: 12px 14px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .ph-card-title {
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .ph-card-price {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .ph-card-price .old-rent {
+    font-size: .8rem;
+    font-weight: 400;
+    color: var(--muted);
+    text-decoration: line-through;
+  }
+  .badge-price-drop {
+    font-size: .65rem;
+    font-weight: 600;
+    background: rgba(239,68,68,.15);
+    color: #F87171;
+    border: 1px solid rgba(239,68,68,.3);
+    border-radius: 4px;
+    padding: 1px 5px;
+    letter-spacing: .02em;
+  }
+  .ph-card-meta {
+    display: flex;
+    gap: 10px;
+    font-size: .75rem;
+    color: var(--muted2);
+    flex-wrap: wrap;
+  }
+  .ph-card-meta span { display: flex; align-items: center; gap: 3px; }
+  .ph-card-updated { font-size: .68rem; color: var(--muted); }
+  .ph-card-badges { display: flex; gap: 5px; flex-wrap: wrap; }
+  .ph-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: .66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+  .ph-badge-new    { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(16,185,129,.3); }
+  .ph-badge-alerted { background: rgba(245,158,11,.15); color: var(--gold); border: 1px solid rgba(245,158,11,.3); }
+  .ph-badge-read   { background: rgba(255,255,255,.05); color: var(--muted); border: 1px solid var(--border); }
+
+  .ph-card-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .btn-card {
+    flex: 1;
+    padding: 6px 0;
+    font-size: .75rem;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 1px solid var(--border-hi);
+    background: transparent;
+    color: var(--muted2);
+    cursor: pointer;
+    text-align: center;
+    transition: all .15s;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn-card:hover { background: var(--surface2); color: var(--text); text-decoration: none; }
+  .btn-card.btn-read { color: var(--muted); }
+  .btn-card.btn-read.is-read { color: var(--accent); border-color: rgba(16,185,129,.3); }
+
+  .ph-empty {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--muted);
+    font-size: .88rem;
+  }
+  .ph-empty-icon { font-size: 2.5rem; margin-bottom: 10px; }
+
+  /* Edit modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: var(--surface);
+    border: 1px solid var(--border-hi);
+    border-radius: var(--radius);
+    padding: 20px;
+    width: min(420px, calc(100vw - 32px));
+    max-height: 90dvh;
+    overflow-y: auto;
+  }
+  .modal-title {
+    font-size: .9rem;
+    font-weight: 700;
+    margin-bottom: 14px;
+    color: var(--text);
+  }
+  .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+  .modal-actions .btn { width: auto; flex: 1; padding: 10px; font-size: .85rem; }
+
+  .provider-chip {
+    display: inline-block;
+    font-size: .65rem;
+    font-weight: 600;
+    letter-spacing: .03em;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: rgba(255,255,255,.07);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ph-two-col">
+
+  <!-- ── Left: Watch manager ── -->
+  <div class="ph-left">
+
+    <!-- Add watch form -->
+    <div class="card" style="margin-top:16px">
+      <div class="card-title">เพิ่มโครงการที่ต้องการติดตาม</div>
+      <form id="add-watch-form">
+        <div class="field">
+          <label>แหล่งข้อมูล <span class="req">*</span></label>
+          <select name="provider_id" id="provider-select">
+            {% for pid, mod in providers.items() %}
+            <option value="{{ pid }}">{{ mod.PROVIDER_NAME }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>URL โครงการ <span class="req">*</span></label>
+          <input type="text" id="ph-url-input" name="project_url" placeholder="https://propertyhub.in.th/เช่าคอนโด/โครงการ-xxx" required/>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label>ราคาต่ำสุด <span class="hint">฿/เดือน</span></label>
+            <input type="number" name="min_price" placeholder="10000" min="0"/>
+          </div>
+          <div class="field">
+            <label>ราคาสูงสุด <span class="hint">฿/เดือน</span></label>
+            <input type="number" name="max_price" placeholder="20000" min="0"/>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label>ขนาดขั้นต่ำ <span class="hint">ตร.ม.</span></label>
+            <input type="number" name="min_size_sqm" placeholder="24" min="0" step="0.5"/>
+          </div>
+          <div class="field">
+            <label>ชั้นขั้นต่ำ</label>
+            <input type="number" name="min_floor" placeholder="5" min="1"/>
+          </div>
+        </div>
+        <div class="field">
+          <label>สแกนทุก <span class="hint">นาที</span></label>
+          <input type="number" name="interval_minutes" value="30" min="5" max="1440"/>
+        </div>
+        <div id="add-watch-err" class="alert alert-err hidden"></div>
+        <button type="submit" class="btn btn-primary" id="add-watch-btn">เพิ่มโครงการ</button>
+      </form>
+    </div>
+
+    <!-- Watch list -->
+    <div class="card">
+      <div class="card-title">โครงการที่ติดตาม</div>
+      <div id="watch-list">
+        {% if not watches %}
+          <div class="ph-empty" style="padding:20px 0">
+            <div class="ph-empty-icon">🔍</div>
+            <div>ยังไม่มีโครงการ<br>เพิ่มด้านบนเลย</div>
+          </div>
+        {% endif %}
+        {% for w in watches %}
+        <div class="watch-item" data-watch-id="{{ w.id }}">
+          <div class="watch-item-label">
+            {{ w.label or w.project_url.split('/')[-1] }}
+            <span class="provider-chip">{{ w.provider_name }}</span>
+          </div>
+          <div class="watch-item-meta">
+            <span class="watch-count-badge {% if w.new_count > 0 %}has-new{% endif %}">
+              {{ w.listing_count }} ห้อง{% if w.new_count > 0 %} · {{ w.new_count }} ใหม่{% endif %}
+            </span>
+            {% if w.last_scraped_ago %}
+              <span class="last-scraped-label">สแกนล่าสุด {{ w.last_scraped_ago }}</span>
+            {% else %}
+              <span class="last-scraped-label">ยังไม่เคยสแกน</span>
+            {% endif %}
+            <span class="scraping-label" style="color:var(--accent);display:{% if w.is_scraping %}inline{% else %}none{% endif %}"><span class="spinner"></span> กำลังสแกน…</span>
+            <span class="countdown-label" style="color:var(--muted);display:none">ครั้งต่อไปใน <b class="countdown-val">–</b></span>
+          </div>
+          <div class="watch-item-filters">
+            {% if w.min_price or w.max_price %}
+              ฿{{ '{:,}'.format(w.min_price) if w.min_price else '0' }}–{{ '{:,}'.format(w.max_price) if w.max_price else '∞' }}/เดือน
+            {% endif %}
+            {% if w.min_size_sqm %} · ≥{{ w.min_size_sqm|int }} ตร.ม.{% endif %}
+            {% if w.min_floor %} · ชั้น ≥{{ w.min_floor }}{% endif %}
+            · ทุก {{ w.interval_minutes }} นาที
+          </div>
+          <div class="watch-item-actions">
+            <button class="btn-xs btn-scan" onclick="triggerScrape({{ w.id }}, this)">⚡ สแกนเดี๋ยวนี้</button>
+            <button class="btn-xs" onclick="openEdit({{ w.id }})">แก้ไข</button>
+            <button class="btn-xs btn-del" onclick="deleteWatch({{ w.id }}, this)">ลบ</button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Right: Listings panel ── -->
+  <div class="ph-right" style="padding-top:16px">
+    <div class="ph-filter-bar" id="filter-bar">
+      <button class="filter-pill active" data-filter="all" onclick="setFilter('all', this)">ทั้งหมด</button>
+      <button class="filter-pill" data-filter="new" onclick="setFilter('new', this)">ใหม่</button>
+      <button class="filter-pill" data-filter="alerted" onclick="setFilter('alerted', this)">แจ้งแล้ว</button>
+      <button class="filter-pill pill-read" data-filter="read" onclick="setFilter('read', this)">ดูแล้ว</button>
+      <span id="listing-total" style="margin-left:auto;font-size:.75rem;color:var(--muted);align-self:center"></span>
+      <button class="btn-xs btn-del" id="delete-all-btn" onclick="deleteAllListings()" style="flex-shrink:0">ลบทั้งหมด</button>
+    </div>
+
+    <div id="listings-grid" class="ph-grid"></div>
+  </div>
+
+</div>
+
+<!-- Edit modal -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal-box">
+    <div class="modal-title">แก้ไขการตั้งค่าโครงการ</div>
+    <form id="edit-form">
+      <input type="hidden" name="watch_id" id="edit-watch-id"/>
+      <div class="grid-2">
+        <div class="field">
+          <label>ราคาต่ำสุด</label>
+          <input type="number" name="min_price" id="edit-min-price" placeholder="ไม่จำกัด" min="0"/>
+        </div>
+        <div class="field">
+          <label>ราคาสูงสุด</label>
+          <input type="number" name="max_price" id="edit-max-price" placeholder="ไม่จำกัด" min="0"/>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="field">
+          <label>ขนาดขั้นต่ำ (ตร.ม.)</label>
+          <input type="number" name="min_size_sqm" id="edit-min-size" placeholder="ไม่จำกัด" min="0" step="0.5"/>
+        </div>
+        <div class="field">
+          <label>ชั้นขั้นต่ำ</label>
+          <input type="number" name="min_floor" id="edit-min-floor" placeholder="ไม่จำกัด" min="1"/>
+        </div>
+      </div>
+      <div class="field">
+        <label>สแกนทุก (นาที)</label>
+        <input type="number" name="interval_minutes" id="edit-interval" value="30" min="5" max="1440"/>
+      </div>
+      <div id="edit-err" class="alert alert-err hidden"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeEdit()">ยกเลิก</button>
+        <button type="submit" class="btn btn-primary">บันทึก</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// ── Jinja macro polyfill: render_card is inlined via JS ──────────────────
+// All card rendering done client-side to enable partial DOM refresh.
+
+let _currentFilter = 'all';
+let _watches = {{ watches | tojson }};
+let _listings = {{ listings | tojson }};
+
+// ── Card rendering ──────────────────────────────────────────────────────
+
+function fmtRent(v) {
+  return v ? '฿' + v.toLocaleString() + '/เดือน' : 'ราคาไม่ระบุ';
+}
+function fmtSize(v) { return v ? v + ' ตร.ม.' : ''; }
+function fmtFloor(v) { return v ? 'ชั้น ' + v : ''; }
+function fmtUpdated(v) {
+  if (!v) return '';
+  try {
+    const d = new Date(v);
+    const diff = Math.floor((Date.now() - d) / 1000);
+    if (diff < 60) return diff + ' วินาทีที่แล้ว';
+    if (diff < 3600) return Math.floor(diff/60) + ' นาทีที่แล้ว';
+    if (diff < 86400) return Math.floor(diff/3600) + ' ชั่วโมงที่แล้ว';
+    return Math.floor(diff/86400) + ' วันที่แล้ว';
+  } catch { return ''; }
+}
+
+function buildCard(lst) {
+  const isRead = !!lst.is_read;
+  const isAlerted = !!lst.alerted_at;
+  const isNew = !isAlerted && !isRead;
+
+  let badgesHtml = '';
+  if (isRead) badgesHtml = '<span class="ph-badge ph-badge-read">ดูแล้ว</span>';
+  else if (isAlerted) badgesHtml = '<span class="ph-badge ph-badge-alerted">แจ้งแล้ว</span>';
+  else badgesHtml = '<span class="ph-badge ph-badge-new">ใหม่</span>';
+
+  const imgHtml = lst.cover_image_url
+    ? `<img class="ph-card-img" src="${lst.cover_image_url}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+      + `<div class="ph-card-img-placeholder" style="display:none">🏢</div>`
+    : `<div class="ph-card-img-placeholder">🏢</div>`;
+
+  const metaParts = [fmtSize(lst.size_sqm), fmtFloor(lst.floor), lst.room_type].filter(Boolean);
+  const readLabel = isRead ? '↩ ยังไม่ได้ดู' : '✓ ดูแล้ว';
+  const readClass = isRead ? 'btn-card btn-read is-read' : 'btn-card btn-read';
+
+  return `<div class="ph-card ${isRead ? 'is-read' : ''}"
+               data-id="${lst.id}"
+               data-read="${isRead ? '1' : ''}"
+               data-alerted="${isAlerted ? '1' : ''}"
+               data-watch="${lst.watch_id}">
+    ${imgHtml}
+    <div class="ph-card-body">
+      <div class="ph-card-badges">${badgesHtml}</div>
+      <div class="ph-card-title">${lst.title || 'ไม่มีชื่อ'}</div>
+      <div class="ph-card-price">
+        ${lst.prev_monthly_rent ? `<s class="old-rent">${fmtRent(lst.prev_monthly_rent)}</s>` : ''}
+        ${fmtRent(lst.monthly_rent)}
+        ${lst.prev_monthly_rent ? `<span class="badge-price-drop">📉 ราคาลด</span>` : ''}
+      </div>
+      <div class="ph-card-meta">${metaParts.map(p => `<span>${p}</span>`).join('')}</div>
+      <div class="ph-card-updated">เลื่อนล่าสุด ${fmtUpdated(lst.refreshed_at)}</div>
+      <div class="ph-card-actions">
+        <a class="btn-card" href="${lst.listing_url}" target="_blank" rel="noopener">↗ ดูรายการ</a>
+        <button class="${readClass}" onclick="toggleRead(${lst.id}, this)">${readLabel}</button>
+        <button class="btn-card btn-del-listing" onclick="deleteListing(${lst.id}, this)" title="ลบ" style="flex:0;padding:6px 10px;color:#F87171;border-color:rgba(239,68,68,.3)">✕</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderGrid(listings) {
+  const grid = document.getElementById('listings-grid');
+  if (!listings.length) {
+    grid.innerHTML = `<div class="ph-empty" style="grid-column:1/-1">
+      <div class="ph-empty-icon">🏙️</div>
+      <div>ไม่มีห้องที่ตรงตามเงื่อนไขในขณะนี้</div>
+    </div>`;
+    return;
+  }
+  grid.innerHTML = listings.map(buildCard).join('');
+}
+
+function sortListings(arr) {
+  return [...arr].sort((a, b) => {
+    // 1. unread first
+    const aRead = a.is_read ? 1 : 0;
+    const bRead = b.is_read ? 1 : 0;
+    if (aRead !== bRead) return aRead - bRead;
+    // 2. newest refreshed_at first
+    const aTime = a.refreshed_at ? new Date(a.refreshed_at).getTime() : 0;
+    const bTime = b.refreshed_at ? new Date(b.refreshed_at).getTime() : 0;
+    if (bTime !== aTime) return bTime - aTime;
+    // 3. cheapest first
+    return (a.monthly_rent || 0) - (b.monthly_rent || 0);
+  });
+}
+
+function applyFilter(filter) {
+  let visible = _listings;
+  if (filter === 'new')     visible = _listings.filter(l => !l.alerted_at && !l.is_read);
+  if (filter === 'alerted') visible = _listings.filter(l => !!l.alerted_at && !l.is_read);
+  if (filter === 'read')    visible = _listings.filter(l => !!l.is_read);
+  renderGrid(sortListings(visible));
+  document.getElementById('listing-total').textContent = visible.length + ' รายการ';
+}
+
+function setFilter(filter, btn) {
+  _currentFilter = filter;
+  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilter(filter);
+}
+
+// Initial render
+applyFilter('all');
+
+// ── Read toggle ──────────────────────────────────────────────────────────
+
+async function toggleRead(listingId, btn) {
+  const card = btn.closest('.ph-card');
+  const isRead = card.dataset.read === '1';
+  const endpoint = isRead
+    ? `/providers/listings/${listingId}/mark-unread`
+    : `/providers/listings/${listingId}/mark-read`;
+  try {
+    const res = await fetch(endpoint, { method: 'POST' });
+    if (!res.ok) throw new Error(await res.text());
+    const lst = _listings.find(l => l.id === listingId);
+    if (lst) {
+      lst.is_read = isRead ? 0 : 1;
+    }
+    applyFilter(_currentFilter);
+  } catch (e) {
+    alert('เกิดข้อผิดพลาด: ' + e.message);
+  }
+}
+
+// ── Trigger immediate scrape ─────────────────────────────────────────────
+
+async function triggerScrape(watchId, btn) {
+  btn.disabled = true;
+  btn.textContent = '⚡ กำลังสแกน…';
+  try {
+    const res = await fetch(`/providers/watches/${watchId}/scrape`, { method: 'POST' });
+    const data = await res.json();
+    if (data.status === 'started' || data.status === 'already_running') {
+      btn.textContent = '⚡ สแกนแล้ว';
+      setTimeout(() => refreshListings(watchId), 3000);
+      setTimeout(() => { btn.disabled = false; btn.textContent = '⚡ สแกนเดี๋ยวนี้'; }, 8000);
+    }
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = '⚡ สแกนเดี๋ยวนี้';
+  }
+}
+
+// ── Partial refresh ───────────────────────────────────────────────────────
+
+async function refreshListings(watchId) {
+  try {
+    const res = await fetch(`/providers/watches/${watchId}/listings`);
+    if (!res.ok) return;
+    const newListings = await res.json();
+    // Merge into _listings for this watch
+    const others = _listings.filter(l => l.watch_id !== watchId);
+    // Preserve muted_at/alerted_at from existing data if server hasn't updated yet
+    _listings = [...others, ...newListings];
+    applyFilter(_currentFilter);
+    updateWatchBadge(watchId, newListings);
+  } catch (e) { /* silent */ }
+}
+
+function updateWatchBadge(watchId, listings) {
+  const item = document.querySelector(`.watch-item[data-watch-id="${watchId}"]`);
+  if (!item) return;
+  const total = listings.length;
+  const newCount = listings.filter(l => !l.alerted_at && !l.is_read).length;
+  const badge = item.querySelector('.watch-count-badge');
+  if (badge) {
+    badge.textContent = total + ' ห้อง' + (newCount > 0 ? ` · ${newCount} ใหม่` : '');
+    badge.classList.toggle('has-new', newCount > 0);
+  }
+}
+
+// ── Status polling + countdown ────────────────────────────────────────────
+
+// countdown state: watch_id -> { nextInSec, fetchedAt }
+const _countdowns = {};
+
+function fmtCountdown(sec) {
+  if (sec <= 0) return 'กำลังจะสแกน…';
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m > 0 ? `${m}:${String(s).padStart(2,'0')} นาที` : `${s} วิ`;
+}
+
+function applyStatusToWatchCard(w) {
+  const item = document.querySelector(`.watch-item[data-watch-id="${w.id}"]`);
+  if (!item) return;
+
+  const scrapingEl = item.querySelector('.scraping-label');
+  const countdownEl = item.querySelector('.countdown-label');
+  const lastEl = item.querySelector('.last-scraped-label');
+
+  if (w.is_scraping) {
+    if (scrapingEl) scrapingEl.style.display = 'inline';
+    if (countdownEl) countdownEl.style.display = 'none';
+  } else {
+    if (scrapingEl) scrapingEl.style.display = 'none';
+    if (countdownEl) {
+      const hasNext = (w.next_in_seconds != null);
+      countdownEl.style.display = hasNext ? 'inline' : 'none';
+      if (hasNext) {
+        const val = countdownEl.querySelector('.countdown-val');
+        if (val) val.textContent = fmtCountdown(w.next_in_seconds || 0);
+      }
+    }
+  }
+
+  if (lastEl && w.last_scraped_ago) {
+    lastEl.textContent = 'สแกนล่าสุด ' + w.last_scraped_ago;
+  }
+
+  // store snapshot for local tick (key always string for Object.entries compat)
+  _countdowns[String(w.id)] = {
+    nextInSec: w.next_in_seconds || 0,
+    fetchedAt: Date.now(),
+    isScraping: !!w.is_scraping,
+  };
+}
+
+// Tick every second to count down locally without hitting server
+setInterval(() => {
+  for (const [watchId, snap] of Object.entries(_countdowns)) {
+    if (snap.isScraping) continue;
+    const elapsed = Math.floor((Date.now() - snap.fetchedAt) / 1000);
+    const remaining = Math.max(0, snap.nextInSec - elapsed);
+    const item = document.querySelector(`.watch-item[data-watch-id="${watchId}"]`);
+    if (!item) continue;
+    const val = item.querySelector('.countdown-val');
+    if (val) val.textContent = fmtCountdown(remaining);
+  }
+}, 1000);
+
+async function pollStatus() {
+  try {
+    const res = await fetch('/providers/status');
+    if (!res.ok) return;
+    const data = await res.json();
+    for (const w of (data.watches || [])) {
+      applyStatusToWatchCard(w);
+      // if scraping just finished, refresh listings
+      const prev = _countdowns[w.id];
+      if (prev && prev.isScraping && !w.is_scraping) {
+        refreshListings(w.id);
+      }
+    }
+    // Update _watches to reflect latest state
+    _watches = data.watches || _watches;
+  } catch (e) { /* silent */ }
+}
+
+// Poll status every 5s; refresh listings every 60s
+setInterval(pollStatus, 5000);
+setInterval(async () => {
+  for (const w of _watches) {
+    await refreshListings(w.id);
+  }
+}, 60000);
+
+// Kick off first status poll immediately
+pollStatus();
+
+// ── Add watch ─────────────────────────────────────────────────────────────
+
+document.getElementById('add-watch-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('add-watch-btn');
+  const errEl = document.getElementById('add-watch-err');
+  errEl.classList.add('hidden');
+
+  btn.disabled = true;
+  btn.textContent = 'กำลังเพิ่ม…';
+
+  const fd = new FormData(e.target);
+  try {
+    const res = await fetch('/providers/watches', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'เกิดข้อผิดพลาด';
+      errEl.classList.remove('hidden');
+    } else {
+      _watches.push(data.watch);
+      appendWatchItem(data.watch);
+      document.getElementById('ph-url-input').value = '';
+    }
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.classList.remove('hidden');
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'เพิ่มโครงการ';
+});
+
+function appendWatchItem(w) {
+  const list = document.getElementById('watch-list');
+  const empty = list.querySelector('.ph-empty');
+  if (empty) empty.remove();
+
+  const label = w.label || w.project_url.split('/').pop();
+  const filterStr = [
+    (w.min_price || w.max_price)
+      ? `฿${(w.min_price||0).toLocaleString()}–${w.max_price ? w.max_price.toLocaleString() : '∞'}/เดือน`
+      : null,
+    w.min_size_sqm ? `≥${Math.floor(w.min_size_sqm)} ตร.ม.` : null,
+    w.min_floor ? `ชั้น ≥${w.min_floor}` : null,
+    `ทุก ${w.interval_minutes} นาที`,
+  ].filter(Boolean).join(' · ');
+
+  const div = document.createElement('div');
+  div.className = 'watch-item';
+  div.dataset.watchId = w.id;
+  div.innerHTML = `
+    <div class="watch-item-label">${label}</div>
+    <div class="watch-item-meta">
+      <span class="watch-count-badge">0 ห้อง</span>
+      <span class="last-scraped-label">ยังไม่เคยสแกน</span>
+      <span class="scraping-label" style="color:var(--accent);display:none"><span class="spinner"></span> กำลังสแกน…</span>
+      <span class="countdown-label" style="color:var(--muted);display:none">ครั้งต่อไปใน <b class="countdown-val">–</b></span>
+    </div>
+    <div class="watch-item-filters">${filterStr}</div>
+    <div class="watch-item-actions">
+      <button class="btn-xs btn-scan" onclick="triggerScrape(${w.id}, this)">⚡ สแกนเดี๋ยวนี้</button>
+      <button class="btn-xs" onclick="openEdit(${w.id})">แก้ไข</button>
+      <button class="btn-xs btn-del" onclick="deleteWatch(${w.id}, this)">ลบ</button>
+    </div>`;
+  list.appendChild(div);
+}
+
+// ── Delete watch ──────────────────────────────────────────────────────────
+
+async function deleteWatch(watchId, btn) {
+  if (!confirm('ลบโครงการนี้และข้อมูลทั้งหมดหรือไม่?')) return;
+  try {
+    const res = await fetch(`/providers/watches/${watchId}/delete`, { method: 'POST' });
+    if (!res.ok) throw new Error('ลบไม่สำเร็จ');
+    const item = document.querySelector(`.watch-item[data-watch-id="${watchId}"]`);
+    if (item) item.remove();
+    _watches = _watches.filter(w => w.id !== watchId);
+    _listings = _listings.filter(l => l.watch_id !== watchId);
+    applyFilter(_currentFilter);
+    if (!document.querySelectorAll('.watch-item').length) {
+      document.getElementById('watch-list').innerHTML = `<div class="ph-empty" style="padding:20px 0">
+        <div class="ph-empty-icon">🔍</div><div>ยังไม่มีโครงการ</div></div>`;
+    }
+  } catch (e) { alert('เกิดข้อผิดพลาด: ' + e.message); }
+}
+
+// ── Delete listing ────────────────────────────────────────────────────────
+
+async function deleteListing(listingId, btn) {
+  try {
+    const res = await fetch(`/providers/listings/${listingId}/delete`, { method: 'POST' });
+    if (!res.ok) throw new Error(await res.text());
+    _listings = _listings.filter(l => l.id !== listingId);
+    applyFilter(_currentFilter);
+  } catch (e) {
+    alert('เกิดข้อผิดพลาด: ' + e.message);
+  }
+}
+
+async function deleteAllListings() {
+  const watchIds = [...new Set(_listings.map(l => l.watch_id))];
+  if (!watchIds.length) return;
+  if (!confirm(`ลบห้องทั้งหมด ${_listings.length} รายการหรือไม่?`)) return;
+  const btn = document.getElementById('delete-all-btn');
+  btn.disabled = true;
+  try {
+    await Promise.all(watchIds.map(id =>
+      fetch(`/providers/watches/${id}/listings/delete-all`, { method: 'POST' })
+    ));
+    _listings = [];
+    applyFilter(_currentFilter);
+    // reset badges
+    document.querySelectorAll('.watch-item').forEach(item => {
+      const badge = item.querySelector('.watch-count-badge');
+      if (badge) { badge.textContent = '0 ห้อง'; badge.classList.remove('has-new'); }
+    });
+  } catch (e) {
+    alert('เกิดข้อผิดพลาด: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Edit modal ────────────────────────────────────────────────────────────
+
+function openEdit(watchId) {
+  const w = _watches.find(x => x.id === watchId);
+  if (!w) return;
+  document.getElementById('edit-watch-id').value = watchId;
+  document.getElementById('edit-min-price').value = w.min_price || '';
+  document.getElementById('edit-max-price').value = w.max_price || '';
+  document.getElementById('edit-min-size').value = w.min_size_sqm || '';
+  document.getElementById('edit-min-floor').value = w.min_floor || '';
+  document.getElementById('edit-interval').value = w.interval_minutes || 30;
+  document.getElementById('edit-err').classList.add('hidden');
+  document.getElementById('edit-modal').classList.add('open');
+}
+
+function closeEdit() {
+  document.getElementById('edit-modal').classList.remove('open');
+}
+
+document.getElementById('edit-modal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeEdit();
+});
+
+document.getElementById('edit-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const watchId = fd.get('watch_id');
+  const errEl = document.getElementById('edit-err');
+  errEl.classList.add('hidden');
+  try {
+    const res = await fetch(`/providers/watches/${watchId}/edit`, { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'เกิดข้อผิดพลาด';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    // Update local watch state
+    const idx = _watches.findIndex(w => w.id == watchId);
+    if (idx >= 0) _watches[idx] = data.watch;
+    // Update filter text in DOM
+    const item = document.querySelector(`.watch-item[data-watch-id="${watchId}"]`);
+    if (item) {
+      const w = data.watch;
+      const filterStr = [
+        (w.min_price || w.max_price)
+          ? `฿${(w.min_price||0).toLocaleString()}–${w.max_price ? w.max_price.toLocaleString() : '∞'}/เดือน`
+          : null,
+        w.min_size_sqm ? `≥${Math.floor(w.min_size_sqm)} ตร.ม.` : null,
+        w.min_floor ? `ชั้น ≥${w.min_floor}` : null,
+        `ทุก ${w.interval_minutes} นาที`,
+      ].filter(Boolean).join(' · ');
+      const filtersEl = item.querySelector('.watch-item-filters');
+      if (filtersEl) filtersEl.textContent = filterStr;
+    }
+    closeEdit();
+  } catch (err) {
+    errEl.textContent = 'เกิดข้อผิดพลาด: ' + err.message;
+    errEl.classList.remove('hidden');
+  }
+});
+</script>
+{% endblock %}

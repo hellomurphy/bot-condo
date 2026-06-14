@@ -143,6 +143,7 @@ def init_db():
                 id               INTEGER PRIMARY KEY AUTOINCREMENT,
                 project_url      TEXT NOT NULL UNIQUE,
                 label            TEXT,
+                provider_id      TEXT NOT NULL DEFAULT 'propertyhub',
                 min_price        INTEGER,
                 max_price        INTEGER,
                 min_size_sqm     REAL,
@@ -180,6 +181,10 @@ def init_db():
             pass  # column already exists
         try:
             conn.execute("ALTER TABLE ph_listings ADD COLUMN prev_monthly_rent INTEGER")
+        except Exception:
+            pass  # column already exists
+        try:
+            conn.execute("ALTER TABLE ph_watches ADD COLUMN provider_id TEXT NOT NULL DEFAULT 'propertyhub'")
         except Exception:
             pass  # column already exists
 
@@ -472,11 +477,12 @@ def cleanup_old_posts(days: int):
 def upsert_ph_watch(data: dict) -> int:
     with transaction() as conn:
         conn.execute("""
-            INSERT INTO ph_watches (project_url, label, min_price, max_price,
+            INSERT INTO ph_watches (project_url, label, provider_id, min_price, max_price,
                 min_size_sqm, min_floor, interval_minutes, active, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
             ON CONFLICT(project_url) DO UPDATE SET
                 label=excluded.label,
+                provider_id=excluded.provider_id,
                 min_price=excluded.min_price,
                 max_price=excluded.max_price,
                 min_size_sqm=excluded.min_size_sqm,
@@ -486,6 +492,7 @@ def upsert_ph_watch(data: dict) -> int:
         """, (
             data["project_url"],
             data.get("label"),
+            data.get("provider_id", "propertyhub"),
             data.get("min_price"),
             data.get("max_price"),
             data.get("min_size_sqm"),
