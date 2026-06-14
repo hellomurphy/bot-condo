@@ -14,6 +14,13 @@ class RunEntry(TypedDict):
 
 runs: dict[str, RunEntry] = {}
 
+# PropertyHub background poller state
+ph_poller: dict = {
+    "task": None,                # asyncio.Task | None
+    "watch_last_scraped": {},    # watch_id (int) -> float (time.monotonic())
+    "currently_scraping": set(), # set[int] — watch IDs in flight
+}
+
 
 def new_run(run_id: str) -> RunEntry:
     entry: RunEntry = {

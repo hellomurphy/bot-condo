@@ -36,7 +36,11 @@ FORM_DEFAULTS = {
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from web.ph_poller import poll_loop
+    task = asyncio.create_task(poll_loop())
+    state.ph_poller["task"] = task
     yield
+    task.cancel()
     # Kill any orphaned subprocesses on shutdown
     for run in state.runs.values():
         proc = run.get("process")
