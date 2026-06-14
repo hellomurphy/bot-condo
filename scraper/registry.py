@@ -5,7 +5,9 @@ To add a new provider:
 2. Import it here and add to PROVIDERS.
 """
 from scraper import propertyhub as _ph
+from scraper import livinginsider as _li
 
 PROVIDERS: dict = {
     _ph.PROVIDER_ID: _ph,
+    _li.PROVIDER_ID: _li,
 }
