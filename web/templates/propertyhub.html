@@ -278,7 +278,13 @@
           <label>URL โครงการ <span class="req">*</span>
             <span class="hint">จาก propertyhub.in.th</span>
           </label>
-          <input type="text" name="project_url" placeholder="https://propertyhub.in.th/เช่าคอนโด/โครงการ-xxx" required/>
+          <div id="ph-url-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px">
+            <div class="url-row">
+              <input type="text" name="project_urls" placeholder="https://propertyhub.in.th/เช่าคอนโด/โครงการ-xxx" required/>
+              <button type="button" class="icon-btn" onclick="removePhUrlRow(this)" title="ลบ">✕</button>
+            </div>
+          </div>
+          <button type="button" class="icon-btn" id="add-ph-url-btn" title="เพิ่ม URL" style="width:100%;border-style:dashed;font-size:1rem">+</button>
         </div>
         <div class="grid-2">
           <div class="field">
@@ -582,6 +588,26 @@ setInterval(async () => {
   }
 }, 60000);
 
+// ── URL list helpers ──────────────────────────────────────────────────────
+
+function addPhUrlRow(value = '') {
+  const list = document.getElementById('ph-url-list');
+  const row = document.createElement('div');
+  row.className = 'url-row';
+  row.innerHTML = `<input type="text" name="project_urls" value="${value.replace(/"/g,'&quot;')}"
+    placeholder="https://propertyhub.in.th/เช่าคอนโด/โครงการ-xxx"/>
+    <button type="button" class="icon-btn" onclick="removePhUrlRow(this)" title="ลบ">✕</button>`;
+  list.appendChild(row);
+  row.querySelector('input').focus();
+}
+
+function removePhUrlRow(btn) {
+  const list = document.getElementById('ph-url-list');
+  if (list.children.length > 1) btn.closest('.url-row').remove();
+}
+
+document.getElementById('add-ph-url-btn').addEventListener('click', () => addPhUrlRow());
+
 // ── Add watch ─────────────────────────────────────────────────────────────
 
 document.getElementById('add-watch-form').addEventListener('submit', async (e) => {
@@ -589,29 +615,59 @@ document.getElementById('add-watch-form').addEventListener('submit', async (e) =
   const btn = document.getElementById('add-watch-btn');
   const errEl = document.getElementById('add-watch-err');
   errEl.classList.add('hidden');
-  btn.disabled = true;
-  btn.textContent = 'กำลังเพิ่ม…';
 
-  const fd = new FormData(e.target);
-  try {
-    const res = await fetch('/propertyhub/watches', { method: 'POST', body: fd });
-    const data = await res.json();
-    if (!res.ok) {
-      errEl.textContent = data.error || 'เกิดข้อผิดพลาด';
-      errEl.classList.remove('hidden');
-      return;
-    }
-    // Add watch to state and render new watch item
-    _watches.push(data.watch);
-    appendWatchItem(data.watch);
-    e.target.reset();
-  } catch (err) {
-    errEl.textContent = 'เกิดข้อผิดพลาด: ' + err.message;
+  const urls = [...document.querySelectorAll('#ph-url-list input[name="project_urls"]')]
+    .map(i => i.value.trim()).filter(Boolean);
+  if (!urls.length) {
+    errEl.textContent = 'กรุณากรอก URL อย่างน้อย 1 รายการ';
     errEl.classList.remove('hidden');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'เพิ่มโครงการ';
+    return;
   }
+
+  btn.disabled = true;
+  btn.textContent = `กำลังเพิ่ม 0/${urls.length}…`;
+
+  const baseData = new FormData(e.target);
+  const errors = [];
+  let added = 0;
+
+  for (let i = 0; i < urls.length; i++) {
+    btn.textContent = `กำลังเพิ่ม ${i + 1}/${urls.length}…`;
+    const fd = new FormData();
+    fd.append('project_url', urls[i]);
+    for (const [k, v] of baseData.entries()) {
+      if (k !== 'project_urls') fd.append(k, v);
+    }
+    try {
+      const res = await fetch('/propertyhub/watches', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        errors.push(`${urls[i]}: ${data.error || 'เกิดข้อผิดพลาด'}`);
+      } else {
+        _watches.push(data.watch);
+        appendWatchItem(data.watch);
+        added++;
+      }
+    } catch (err) {
+      errors.push(`${urls[i]}: ${err.message}`);
+    }
+  }
+
+  if (errors.length) {
+    errEl.innerHTML = errors.map(s => `<div>${s}</div>`).join('');
+    errEl.classList.remove('hidden');
+  }
+  if (added > 0) {
+    // Reset only the URL list; keep filter values
+    const list = document.getElementById('ph-url-list');
+    list.innerHTML = `<div class="url-row">
+      <input type="text" name="project_urls" placeholder="https://propertyhub.in.th/เช่าคอนโด/โครงการ-xxx"/>
+      <button type="button" class="icon-btn" onclick="removePhUrlRow(this)" title="ลบ">✕</button>
+    </div>`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'เพิ่มโครงการ';
 });
 
 function appendWatchItem(w) {
