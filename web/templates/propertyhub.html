@@ -505,12 +505,27 @@ function renderGrid(listings) {
   grid.innerHTML = listings.map(buildCard).join('');
 }
 
+function sortListings(arr) {
+  return [...arr].sort((a, b) => {
+    // 1. unread first
+    const aRead = a.is_read ? 1 : 0;
+    const bRead = b.is_read ? 1 : 0;
+    if (aRead !== bRead) return aRead - bRead;
+    // 2. newest refreshed_at first
+    const aTime = a.refreshed_at ? new Date(a.refreshed_at).getTime() : 0;
+    const bTime = b.refreshed_at ? new Date(b.refreshed_at).getTime() : 0;
+    if (bTime !== aTime) return bTime - aTime;
+    // 3. cheapest first
+    return (a.monthly_rent || 0) - (b.monthly_rent || 0);
+  });
+}
+
 function applyFilter(filter) {
   let visible = _listings;
   if (filter === 'new')     visible = _listings.filter(l => !l.alerted_at && !l.is_read);
   if (filter === 'alerted') visible = _listings.filter(l => !!l.alerted_at && !l.is_read);
   if (filter === 'read')    visible = _listings.filter(l => !!l.is_read);
-  renderGrid(visible);
+  renderGrid(sortListings(visible));
   document.getElementById('listing-total').textContent = visible.length + ' รายการ';
 }
 
