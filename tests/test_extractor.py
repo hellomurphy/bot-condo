@@ -1,4 +1,3 @@
-import hashlib
 import json
 import os
 import sys
@@ -11,151 +10,19 @@ if ROOT_DIR not in sys.path:
 
 os.environ.setdefault("DEEPSEEK_API_KEY", "test-key")
 
-from analysis.extractor import (
-    ExtractionError,
-    _parse_and_validate,
-    compute_fingerprint,
-    compute_move_in_cost,
-)
+from analysis.extractor import ExtractionError, _parse_and_validate
 
-
-# ---------------------------------------------------------------------------
-# compute_move_in_cost
-# ---------------------------------------------------------------------------
-
-class ComputeMoveInCostTests(unittest.TestCase):
-    def test_move_in_cost_stated_takes_precedence(self):
-        listing = {"move_in_cost_stated": 25000, "monthly_rent": 10000, "deposit_months": 2}
-        self.assertEqual(compute_move_in_cost(listing), 25000.0)
-
-    def test_stated_cost_returned_as_float(self):
-        listing = {"move_in_cost_stated": 30000}
-        self.assertIsInstance(compute_move_in_cost(listing), float)
-
-    def test_deposit_only_no_advance(self):
-        listing = {"monthly_rent": 10000, "deposit_months": 2, "advance_months": None}
-        self.assertEqual(compute_move_in_cost(listing), 20000.0)
-
-    def test_deposit_and_advance(self):
-        listing = {"monthly_rent": 10000, "deposit_months": 2, "advance_months": 1}
-        self.assertEqual(compute_move_in_cost(listing), 30000.0)
-
-    def test_advance_defaults_to_zero_when_missing(self):
-        listing = {"monthly_rent": 10000, "deposit_months": 2}
-        self.assertEqual(compute_move_in_cost(listing), 20000.0)
-
-    def test_no_rent_returns_none(self):
-        listing = {"monthly_rent": None, "deposit_months": 2}
-        self.assertIsNone(compute_move_in_cost(listing))
-
-    def test_no_deposit_returns_none(self):
-        listing = {"monthly_rent": 10000, "deposit_months": None}
-        self.assertIsNone(compute_move_in_cost(listing))
-
-    def test_all_fields_missing_returns_none(self):
-        self.assertIsNone(compute_move_in_cost({}))
-
-    def test_deposit_zero_months_computes_advance_only(self):
-        listing = {"monthly_rent": 10000, "deposit_months": 0, "advance_months": 1}
-        self.assertEqual(compute_move_in_cost(listing), 10000.0)
-
-    def test_stated_cost_zero_is_valid(self):
-        listing = {"move_in_cost_stated": 0, "monthly_rent": 10000, "deposit_months": 2}
-        self.assertEqual(compute_move_in_cost(listing), 0.0)
-
-
-# ---------------------------------------------------------------------------
-# compute_fingerprint
-# ---------------------------------------------------------------------------
-
-class ComputeFingerprintTests(unittest.TestCase):
-    def _expected(self, **fields) -> str:
-        defaults = {
-            "condo_name": None, "monthly_rent": None, "size_sqm": None,
-            "room_type": None, "floor": None, "location_text": None,
-            "station_name": None, "agent_or_owner": None,
-        }
-        defaults.update(fields)
-        parts = "|".join(str(defaults[f] or "") for f in [
-            "condo_name", "monthly_rent", "size_sqm", "room_type",
-            "floor", "location_text", "station_name", "agent_or_owner",
-        ])
-        return hashlib.sha256(parts.encode()).hexdigest()
-
-    def test_returns_64_char_hex(self):
-        fp = compute_fingerprint({})
-        self.assertEqual(len(fp), 64)
-        self.assertRegex(fp, r'^[0-9a-f]+$')
-
-    def test_identical_listings_same_fingerprint(self):
-        listing = {"condo_name": "Lumpini", "monthly_rent": 12000, "room_type": "studio"}
-        self.assertEqual(compute_fingerprint(listing), compute_fingerprint(listing))
-
-    def test_different_rent_different_fingerprint(self):
-        a = {"monthly_rent": 10000}
-        b = {"monthly_rent": 11000}
-        self.assertNotEqual(compute_fingerprint(a), compute_fingerprint(b))
-
-    def test_empty_dict_stable(self):
-        self.assertEqual(compute_fingerprint({}), self._expected())
-
-    def test_none_and_missing_key_treated_same(self):
-        self.assertEqual(
-            compute_fingerprint({"condo_name": None}),
-            compute_fingerprint({}),
-        )
-
-    def test_extra_fields_ignored(self):
-        a = {"monthly_rent": 10000, "confidence": 0.9}
-        b = {"monthly_rent": 10000, "has_washer": True}
-        self.assertEqual(compute_fingerprint(a), compute_fingerprint(b))
-
-    def test_all_fields_contribute(self):
-        full = {
-            "condo_name": "X", "monthly_rent": 1, "size_sqm": 25, "room_type": "studio",
-            "floor": 5, "location_text": "On Nut", "station_name": "BTS On Nut",
-            "agent_or_owner": "owner",
-        }
-        for key in full:
-            partial = {k: v for k, v in full.items() if k != key}
-            self.assertNotEqual(
-                compute_fingerprint(full), compute_fingerprint(partial),
-                msg=f"removing {key!r} should change the fingerprint",
-            )
-
-
-# ---------------------------------------------------------------------------
-# _parse_and_validate
-# ---------------------------------------------------------------------------
 
 def _make_listing(**overrides) -> dict:
     base = {
-        "listing_type": "rent",
         "condo_name": None,
-        "location_text": None,
-        "station_name": None,
-        "monthly_rent": 10000,
-        "size_sqm": 28,
         "room_type": "studio",
+        "size_sqm": 28,
         "floor": None,
-        "furnishing": "partly",
-        "deposit_months": 2,
-        "advance_months": 1,
-        "move_in_cost_stated": None,
-        "other_fee_text": None,
-        "contract_min_months": None,
-        "available_date": None,
-        "has_parking": None,
-        "has_washer": None,
-        "has_fridge": None,
-        "has_wifi": None,
-        "pet_allowed": None,
-        "near_transit": None,
-        "agent_or_owner": "unknown",
-        "risk_flags": [],
-        "missing_fields": [],
-        "questions_to_ask": [],
-        "confidence": 0.8,
+        "rent": 10000,
+        "location_tags": None,
+        "status": None,
+        "summary": "ห้องสตูดิโอ ราคา 10,000 บาท",
     }
     base.update(overrides)
     return base
@@ -194,7 +61,7 @@ class ParseAndValidateTests(unittest.TestCase):
         self.assertEqual(len(result["listings"]), 1)
 
     def test_multiple_listings_all_returned(self):
-        raw = _wrap(_make_listing(), _make_listing(monthly_rent=12000))
+        raw = _wrap(_make_listing(), _make_listing(rent=12000))
         result = _parse_and_validate(raw)
         self.assertEqual(len(result["listings"]), 2)
 
@@ -230,56 +97,27 @@ class ParseAndValidateTests(unittest.TestCase):
         result = _parse_and_validate(raw)
         self.assertEqual(result["listings"][0]["room_type"], "unknown")
 
-    # --- confidence clamping ---
+    # --- summary fallback ---
 
-    def test_confidence_above_1_clamped(self):
-        raw = _wrap(_make_listing(confidence=1.5))
+    def test_summary_empty_string_becomes_dash(self):
+        raw = _wrap(_make_listing(summary=""))
         result = _parse_and_validate(raw)
-        self.assertEqual(result["listings"][0]["confidence"], 1.0)
+        self.assertEqual(result["listings"][0]["summary"], "-")
 
-    def test_confidence_below_0_clamped(self):
-        raw = _wrap(_make_listing(confidence=-0.3))
+    def test_summary_none_becomes_dash(self):
+        raw = _wrap(_make_listing(summary=None))
         result = _parse_and_validate(raw)
-        self.assertEqual(result["listings"][0]["confidence"], 0.0)
+        self.assertEqual(result["listings"][0]["summary"], "-")
 
-    def test_confidence_within_range_unchanged(self):
-        raw = _wrap(_make_listing(confidence=0.75))
+    def test_summary_whitespace_only_becomes_dash(self):
+        raw = _wrap(_make_listing(summary="   "))
         result = _parse_and_validate(raw)
-        self.assertEqual(result["listings"][0]["confidence"], 0.75)
+        self.assertEqual(result["listings"][0]["summary"], "-")
 
-    def test_confidence_none_not_set(self):
-        raw = _wrap(_make_listing(confidence=None))
+    def test_summary_valid_preserved(self):
+        raw = _wrap(_make_listing(summary="คอนโด ราคาดี"))
         result = _parse_and_validate(raw)
-        self.assertIsNone(result["listings"][0]["confidence"])
-
-    # --- array field normalization ---
-
-    def test_risk_flags_non_list_becomes_empty(self):
-        raw = _wrap(_make_listing(risk_flags="scam_signal"))
-        result = _parse_and_validate(raw)
-        self.assertEqual(result["listings"][0]["risk_flags"], [])
-
-    def test_missing_fields_non_list_becomes_empty(self):
-        raw = _wrap(_make_listing(missing_fields=None))
-        result = _parse_and_validate(raw)
-        self.assertEqual(result["listings"][0]["missing_fields"], [])
-
-    def test_questions_to_ask_non_list_becomes_empty(self):
-        raw = _wrap(_make_listing(questions_to_ask=42))
-        result = _parse_and_validate(raw)
-        self.assertEqual(result["listings"][0]["questions_to_ask"], [])
-
-    def test_valid_list_fields_preserved(self):
-        raw = _wrap(_make_listing(
-            risk_flags=["flag_a"],
-            missing_fields=["monthly_rent"],
-            questions_to_ask=["Is parking included?"],
-        ))
-        result = _parse_and_validate(raw)
-        listing = result["listings"][0]
-        self.assertEqual(listing["risk_flags"], ["flag_a"])
-        self.assertEqual(listing["missing_fields"], ["monthly_rent"])
-        self.assertEqual(listing["questions_to_ask"], ["Is parking included?"])
+        self.assertEqual(result["listings"][0]["summary"], "คอนโด ราคาดี")
 
     # --- error cases ---
 

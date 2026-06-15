@@ -1,6 +1,6 @@
 # bot-condo
 
-A personal automation bot that scrapes Facebook rental groups, filters listings with AI, and ranks them against your preferences — so you never have to scroll through hundreds of posts manually.
+A personal automation bot that scrapes Facebook rental groups, extracts structured listings with AI, and exports results to Excel — so you never have to scroll through hundreds of posts manually.
 
 ---
 
@@ -10,31 +10,83 @@ A personal automation bot that scrapes Facebook rental groups, filters listings 
 Facebook Groups
       │
       ▼
- scraper/feed.py        Playwright scrolls the feed, extracts post text + images
-      │                 classify_post_intent() pre-filters: rent listing vs. seeker vs. junk
-      │                 restricted/locked posts are intercepted before hitting the API
+ scraper/feed.py        Playwright scrolls the feed, extracts post text + comments
+      │                 Hard-skips: restricted/locked posts, sale-only posts
       ▼
-analysis/extractor.py   DeepSeek parses each promising post → structured JSON
-      │                 (rent, size, location, amenities, contact, confidence)
+analysis/extractor.py   Step 1 — check_relevance(): ask DeepSeek if any rental offer exists
+      │                 Step 2 — extract_listings_with_comments(): extract 8-field JSON
+      │                 (condo_name, room_type, size_sqm, floor, rent, location_tags, status, summary)
       ▼
-rules/scoring.py        Hard filters (budget, size, washer…) + weighted score → tier
-      │
+database/db.py          SQLite — dual-gate dedup (post_id + content hash)
+      │                 move_in_cost = rent × 3, inserted alongside extracted fields
       ▼
-database/db.py          SQLite — dual-gate dedup (post_id + content hash), stores all listings
-      │
-      ▼
-Web UI / Excel export   Browse results in browser, or download .xlsx
+Web UI / Excel export   Browse results in browser, or download single-sheet .xlsx
 ```
 
-### Tiers
+---
 
-| Tier | Score | Meaning |
-|---|---|---|
-| `must_call` | ≥ 80 | Matches all preferences — contact now |
-| `shortlist` | ≥ 65 | Strong match |
-| `maybe` | ≥ 50 | Worth a look |
-| `need_info` | — | AI couldn't extract key details |
-| `skip` | — | Over budget, too small, or irrelevant |
+## Filtering approach: v1 vs v2 vs v3
+
+### v1 — Keyword-based pre-filter (original)
+
+Before calling DeepSeek, the system used heavy keyword scoring to pre-filter posts:
+
+- `classify_post_intent()` counted keywords like "ให้เช่า", "หาห้อง", "ขาย" and classified posts as `for_rent / seeking / sale / ambiguous`
+- `seeking` posts had to pass `filter_listing_comments()` — comments with a supply score < 2 were dropped
+- Each comment was sent to DeepSeek separately (parallel, 5 concurrent)
+
+**Problem:** Facebook comment patterns are inconsistent. Keyword scoring dropped many real listings, so dozens of rooms were scraped but only a handful reached the user.
+
+---
+
+### v2 — AI-first 2-step pipeline
+
+Replaced keyword rules with DeepSeek making all relevance decisions:
+
+**Step 1 — Relevance check (cheap)**
+- Post text + all comments are sent as a single blob (capped at 50 comments)
+- DeepSeek replies with only `{"relevant": true/false, "reason": "..."}`
+- If `false` → skip immediately, no Step 2 tokens spent
+
+**Step 2 — Full extraction (only if Step 1 passes)**
+- Same blob sent again; DeepSeek extracts structured fields including a Thai-language `summary`
+- No seeking/for_rent split — every post uses the same flow
+
+**Removed:** `filter_listing_comments()`, per-comment parallel extraction  
+**Added:** `summary` field — one Thai sentence covering all found details
+
+---
+
+### v3 — Lean AI schema, no scoring (current)
+
+Removed all rule-based scoring and tiering. DeepSeek now returns a compact 9-field JSON that is inserted directly to the DB.
+
+**Step 2 — Full extraction (updated schema)**
+- DeepSeek extracts 8 fields: `condo_name`, `room_type`, `size_sqm`, `floor`, `rent`, `location_tags`, `status`, `summary`
+- `status` combines owner/agent flag and risk notes in a single field (≤ 30 chars)
+- `move_in_cost` is computed in Python as `rent × 3` before DB insert
+
+**Removed:**
+- `rules/scoring.py` — no tiers, no weighted scores
+- `listing_scores` table — dropped from schema entirely
+- `--tier` CLI flag, `run_alerts()`, and all preference-based hard filters
+
+**DB schema (listings table)**
+
+| Column | Source |
+|---|---|
+| `condo_name` | AI |
+| `room_type` | AI |
+| `size_sqm` | AI |
+| `floor` | AI |
+| `rent` | AI |
+| `location_tags` | AI |
+| `status` | AI |
+| `summary` | AI (Thai) |
+| `move_in_cost` | Computed: `rent × 3` |
+
+**Excel export** — single sheet "Listings" with 12 columns:  
+Timestamp | Source | Rent (฿) | Move-in Cost | Condo Name | Room Type | Size (sqm) | Floor | Location Tags | Status | Summary | Post Link
 
 ---
 
@@ -43,9 +95,8 @@ Web UI / Excel export   Browse results in browser, or download .xlsx
 | Layer | Tools |
 |---|---|
 | Browser automation | Playwright (async) |
-| AI extraction | DeepSeek API (`deepseek-v4-flash`) |
-| Optional vision | OpenAI `gpt-4o-mini` (floor plan analysis) |
-| Storage | SQLite via `aiosqlite` |
+| AI extraction | DeepSeek API (`deepseek-chat`) |
+| Storage | SQLite |
 | Web UI | FastAPI + Jinja2 |
 | Export | pandas + openpyxl |
 
@@ -72,14 +123,11 @@ Edit `.env` and fill in:
 
 ```env
 DEEPSEEK_API_KEY=sk-...        # required
-OPENAI_API_KEY=sk-...          # optional — only needed for ENABLE_VISION=true
 ```
-
-Preferences (budget, areas, must-haves) are configured through the Web UI at runtime — no need to set them in `.env`.
 
 ### 3. Log in to Facebook
 
-Run once without headless mode to save a browser session:
+Run once to save a browser session:
 
 ```bash
 python main.py --login
@@ -97,19 +145,21 @@ This opens a real browser window. Log in to Facebook manually. The session is sa
 python web.py
 ```
 
-Open [http://localhost:8000](http://localhost:8000), paste Facebook group URLs, set your budget and preferences, then hit **Start**.
+Open [http://localhost:8000](http://localhost:8000), paste Facebook group URLs, then hit **Start**.
 
 - Live log stream while scraping
-- Results table with tier badges
+- Results table with listing cards
 - Download `.xlsx` export
 
 ### CLI
 
 ```bash
-python main.py
+python main.py                   # scrape + extract + export
+python main.py --export-only     # re-export Excel from existing DB
+python main.py --cleanup         # delete posts older than DATA_RETENTION_DAYS
+python main.py --login           # open browser for FB login
+python main.py --max-posts 20    # limit posts per run
 ```
-
-Configure via `.env` or environment variables. Results are saved to `data/condo.db` and `data/results/`.
 
 ---
 
@@ -117,23 +167,15 @@ Configure via `.env` or environment variables. Results are saved to `data/condo.
 
 | Variable | Default | Description |
 |---|---|---|
-| `TARGET_BUDGET` | `12000` | Ideal monthly rent (THB) |
-| `MAX_BUDGET` | `15000` | Hard ceiling |
-| `MAX_MOVE_IN_COST` | — | Max deposit + advance (optional) |
-| `MIN_SIZE_SQM` | `24` | Minimum room size |
-| `PREFERRED_AREAS` | `On Nut,Udom Suk` | Comma-separated area names |
-| `PREFERRED_STATIONS` | `BTS On Nut,BTS Udom Suk` | Comma-separated BTS/MRT stations |
-| `MUST_HAVE_WASHER` | `false` | Hard filter: washer required |
-| `NEED_PARKING` | `false` | Hard filter: parking required |
-| `PET_FRIENDLY` | `false` | Prefer pet-friendly units |
-| `PREFERRED_ROOM_TYPES` | `studio,1br` | `studio`, `1br`, `2br` |
+| `DEEPSEEK_API_KEY` | — | DeepSeek API key (required) |
+| `DEEPSEEK_MODEL` | `deepseek-chat` | DeepSeek model ID |
+| `FB_GROUP_URLS` | — | Comma-separated Facebook group URLs |
 | `MAX_SCROLL_ROUNDS` | `8` | How many scroll pages per group |
 | `MAX_POSTS_PER_RUN` | `150` | Post cap per run |
 | `HEADLESS` | `false` | Run browser in background |
-| `ENABLE_VISION` | `false` | Analyze floor plan images with GPT-4o |
-| `DEEPSEEK_MODEL` | `deepseek-v4-flash` | DeepSeek model ID |
-| `ALERT_MIN_TIER` | `shortlist` | Minimum tier to trigger LINE alert |
-| `DATA_RETENTION_DAYS` | `30` | Auto-delete old listings after N days |
+| `DATA_RETENTION_DAYS` | `30` | Auto-delete old posts after N days |
+| `AUTO_LOOP` | `false` | Keep re-running on an interval |
+| `LOOP_INTERVAL_MINUTES` | `60` | Interval between auto-loop runs |
 
 ---
 
@@ -142,16 +184,12 @@ Configure via `.env` or environment variables. Results are saved to `data/condo.
 ```
 bot-condo/
 ├── scraper/
-│   ├── feed.py          # Facebook feed scroll + intent classification
+│   ├── feed.py          # Facebook feed scroll + post extraction
 │   └── browser.py       # Playwright session management
 ├── analysis/
-│   ├── extractor.py     # DeepSeek API calls + JSON parsing
-│   └── vision.py        # Optional image analysis (GPT-4o)
-├── rules/
-│   ├── scoring.py       # Hard filters + weighted score → tier
-│   └── preferences.py   # Preferences dataclass
+│   └── extractor.py     # DeepSeek API calls + JSON parsing
 ├── database/
-│   └── db.py            # SQLite schema + async queries
+│   └── db.py            # SQLite schema + CRUD helpers
 ├── web/
 │   ├── app.py           # FastAPI routes
 │   ├── scrape_runner.py # Subprocess management for live log streaming
@@ -160,9 +198,7 @@ bot-condo/
 │   ├── state.py         # In-memory run state
 │   └── templates/       # Jinja2 HTML templates
 ├── output/
-│   └── excel.py         # .xlsx export
-├── alerts/
-│   └── notify.py        # LINE Notify integration
+│   └── excel.py         # Single-sheet .xlsx export
 ├── main.py              # CLI entry point
 ├── web.py               # Web UI entry point
 ├── config.py            # Env var loading
@@ -189,7 +225,7 @@ Adding a new provider requires only a single file in `scraper/` implementing `PR
 1. Open the Web UI at [http://localhost:8000/providers](http://localhost:8000/providers)
 2. Add a watch by pasting a project URL from any supported provider
 3. Set optional filters: price range, minimum size (sqm), minimum floor, and poll interval (minutes)
-4. The system polls in the background automatically and sends a LINE alert when a new listing passes your filters
+4. The system polls in the background and sends a LINE alert when a new listing passes your filters
 
 ### Features
 
@@ -229,4 +265,4 @@ database/
 
 - The bot reads **public Facebook group posts** only — it does not interact with or modify any content.
 - Session cookies are stored locally in `user_data/` and are excluded from version control.
-- DeepSeek API costs roughly **< 0.005 THB per post** analyzed ($0.14 / 1M input tokens for deepseek-v4-flash).
+- DeepSeek API costs roughly **< 0.005 THB per post** analyzed.
