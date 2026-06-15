@@ -220,11 +220,7 @@ async def run_scrape(args, prefs):
                             str(post_ref),
                         )
                     else:
-                        if comments:
-                            comments_block = "\n\n--- ความคิดเห็น ---\n" + "\n".join(f"• {c}" for c in comments)
-                            redacted = post_redacted + comments_block
-                        else:
-                            redacted = post_redacted
+                        redacted = post_redacted
 
                         print(f"[extract] start post={post_ref} mode=post_blob")
                         listings = extract_listings(redacted)

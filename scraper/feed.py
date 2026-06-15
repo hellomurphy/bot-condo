@@ -5,6 +5,7 @@ import binascii
 import hashlib
 import random
 import re
+import unicodedata
 from urllib.parse import urlparse, parse_qs
 
 from playwright.async_api import BrowserContext, Page
@@ -491,7 +492,7 @@ def filter_listing_comments(comments: list[str]) -> tuple[list[str], list[tuple[
             continue
 
         score = _comment_supply_score(comment)
-        if score >= 4:
+        if score >= 2:
             accepted.append(comment)
             continue
 
@@ -552,11 +553,11 @@ async def _get_post_text(post_el) -> str:
                 if t.strip():
                     parts.append(t.strip())
             if parts:
-                return "\n".join(parts)
+                return unicodedata.normalize("NFKC", "\n".join(parts))
         except Exception:
             continue
     try:
-        return (await post_el.inner_text()).strip()
+        return unicodedata.normalize("NFKC", (await post_el.inner_text()).strip())
     except Exception:
         return ""
 

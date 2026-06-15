@@ -1,6 +1,7 @@
 import json
 import re
 import hashlib
+import unicodedata
 import urllib.request
 import config
 
@@ -127,7 +128,7 @@ def _parse_and_validate(raw: str) -> dict:
 
 def extract_listings(post_text_redacted: str) -> list[dict]:
     """Extract listings from a redacted post. Returns list of listing dicts."""
-    raw = _call_api(post_text_redacted, 0.0)
+    raw = _call_api(unicodedata.normalize("NFKC", post_text_redacted), 0.0)
 
     # Layer 5: retry on empty content (DeepSeek known bug)
     if not raw.strip():
