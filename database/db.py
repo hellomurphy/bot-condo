@@ -42,7 +42,6 @@ def init_db():
                 groups_scanned      INTEGER DEFAULT 0,
                 posts_found         INTEGER DEFAULT 0,
                 listings_extracted  INTEGER DEFAULT 0,
-                must_call_count     INTEGER DEFAULT 0,
                 status              TEXT
             );
 
@@ -78,38 +77,18 @@ def init_db():
             );
 
             CREATE TABLE IF NOT EXISTS listings (
-                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-                post_ref            INTEGER NOT NULL REFERENCES posts(id),
-                listing_type        TEXT,
-                condo_name          TEXT,
-                location_text       TEXT,
-                station_name        TEXT,
-                monthly_rent        REAL,
-                size_sqm            REAL,
-                room_type           TEXT,
-                floor               TEXT,
-                furnishing          TEXT,
-                deposit_months      REAL,
-                advance_months      REAL,
-                move_in_cost        REAL,
-                move_in_cost_stated REAL,
-                other_fee_text      TEXT,
-                contract_min_months INTEGER,
-                available_date      TEXT,
-                has_parking         INTEGER,
-                has_washer          INTEGER,
-                has_fridge          INTEGER,
-                has_wifi            INTEGER,
-                pet_allowed         INTEGER,
-                agent_or_owner      TEXT,
-                near_transit        INTEGER,
-                confidence          REAL,
-                risk_flags          TEXT,
-                duplicate_flag      INTEGER DEFAULT 0,
-                missing_fields      TEXT,
-                questions_to_ask    TEXT,
-                listing_fingerprint TEXT,
-                created_at          TEXT NOT NULL
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                post_ref      INTEGER NOT NULL REFERENCES posts(id),
+                condo_name    TEXT,
+                room_type     TEXT,
+                size_sqm      REAL,
+                floor         TEXT,
+                rent          REAL,
+                move_in_cost  REAL,
+                location_tags TEXT,
+                status        TEXT,
+                summary       TEXT,
+                created_at    TEXT NOT NULL
             );
 
             CREATE TABLE IF NOT EXISTS post_comments (
@@ -121,23 +100,6 @@ def init_db():
 
             CREATE INDEX IF NOT EXISTS idx_post_comments_post_ref
                 ON post_comments(post_ref);
-
-            CREATE TABLE IF NOT EXISTS listing_scores (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                listing_id      INTEGER UNIQUE NOT NULL REFERENCES listings(id),
-                hard_filter     TEXT,
-                price_score     REAL,
-                commute_score   REAL,
-                condition_score REAL,
-                terms_score     REAL,
-                trust_score     REAL,
-                base_total      REAL,
-                vision_score    REAL,
-                final_total     REAL,
-                tier            TEXT,
-                alerted_at      TEXT,
-                scored_at       TEXT NOT NULL
-            );
 
             CREATE TABLE IF NOT EXISTS ph_watches (
                 id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -174,19 +136,19 @@ def init_db():
 
             CREATE INDEX IF NOT EXISTS idx_ph_listings_watch_id ON ph_listings(watch_id);
         """)
-        # Migrate existing DB: add is_read if missing, drop muted_at usage gracefully
-        try:
-            conn.execute("ALTER TABLE ph_listings ADD COLUMN is_read INTEGER NOT NULL DEFAULT 0")
-        except Exception:
-            pass  # column already exists
-        try:
-            conn.execute("ALTER TABLE ph_listings ADD COLUMN prev_monthly_rent INTEGER")
-        except Exception:
-            pass  # column already exists
-        try:
-            conn.execute("ALTER TABLE ph_watches ADD COLUMN provider_id TEXT NOT NULL DEFAULT 'propertyhub'")
-        except Exception:
-            pass  # column already exists
+        # Migrate existing DB
+        for stmt in [
+            "ALTER TABLE ph_listings ADD COLUMN is_read INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE ph_listings ADD COLUMN prev_monthly_rent INTEGER",
+            "ALTER TABLE ph_watches ADD COLUMN provider_id TEXT NOT NULL DEFAULT 'propertyhub'",
+            "ALTER TABLE listings ADD COLUMN rent REAL",
+            "ALTER TABLE listings ADD COLUMN location_tags TEXT",
+            "ALTER TABLE listings ADD COLUMN status TEXT",
+        ]:
+            try:
+                conn.execute(stmt)
+            except Exception:
+                pass
 
 
 # --- Run helpers ---
@@ -204,14 +166,13 @@ def finish_run(run_id: int, stats: dict):
     with transaction() as conn:
         conn.execute("""
             UPDATE runs SET ended_at=?, groups_scanned=?, posts_found=?,
-                listings_extracted=?, must_call_count=?, status='done'
+                listings_extracted=?, status='done'
             WHERE id=?
         """, (
             _now(),
             stats.get("groups_scanned", 0),
             stats.get("posts_found", 0),
             stats.get("listings_extracted", 0),
-            stats.get("must_call_count", 0),
             run_id,
         ))
 
@@ -326,139 +287,35 @@ def insert_listing(post_id: int, data: dict) -> int:
     with transaction() as conn:
         cur = conn.execute("""
             INSERT INTO listings (
-                post_ref, listing_type, condo_name, location_text, station_name,
-                monthly_rent, size_sqm, room_type, floor, furnishing,
-                deposit_months, advance_months, move_in_cost, move_in_cost_stated,
-                other_fee_text, contract_min_months, available_date,
-                has_parking, has_washer, has_fridge, has_wifi, pet_allowed,
-                agent_or_owner, near_transit, confidence,
-                risk_flags, duplicate_flag, missing_fields, questions_to_ask,
-                listing_fingerprint, created_at
-            ) VALUES (
-                ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
-            )
+                post_ref, condo_name, room_type, size_sqm, floor,
+                rent, move_in_cost, location_tags, status, summary, created_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
         """, (
             post_id,
-            data.get("listing_type"),
             data.get("condo_name"),
-            data.get("location_text"),
-            data.get("station_name"),
-            data.get("monthly_rent"),
-            data.get("size_sqm"),
             data.get("room_type"),
+            data.get("size_sqm"),
             data.get("floor"),
-            data.get("furnishing"),
-            data.get("deposit_months"),
-            data.get("advance_months"),
+            data.get("rent"),
             data.get("move_in_cost"),
-            data.get("move_in_cost_stated"),
-            data.get("other_fee_text"),
-            data.get("contract_min_months"),
-            data.get("available_date"),
-            data.get("has_parking"),
-            data.get("has_washer"),
-            data.get("has_fridge"),
-            data.get("has_wifi"),
-            data.get("pet_allowed"),
-            data.get("agent_or_owner"),
-            data.get("near_transit"),
-            data.get("confidence"),
-            data.get("risk_flags"),
-            data.get("duplicate_flag", 0),
-            data.get("missing_fields"),
-            data.get("questions_to_ask"),
-            data.get("listing_fingerprint"),
+            data.get("location_tags"),
+            data.get("status"),
+            data.get("summary"),
             _now(),
         ))
         return cur.lastrowid
 
 
-def get_listing_by_fingerprint(fingerprint: str) -> sqlite3.Row | None:
-    conn = get_connection()
-    row = conn.execute(
-        "SELECT id FROM listings WHERE listing_fingerprint=?", (fingerprint,)
-    ).fetchone()
-    conn.close()
-    return row
-
-
-# --- Score helpers ---
-
-def insert_score(listing_id: int, data: dict):
-    with transaction() as conn:
-        conn.execute("""
-            INSERT OR REPLACE INTO listing_scores (
-                listing_id, hard_filter, price_score, commute_score, condition_score,
-                terms_score, trust_score, base_total, vision_score, final_total,
-                tier, scored_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-        """, (
-            listing_id,
-            data.get("hard_filter"),
-            data.get("price_score"),
-            data.get("commute_score"),
-            data.get("condition_score"),
-            data.get("terms_score"),
-            data.get("trust_score"),
-            data.get("base_total"),
-            data.get("vision_score"),
-            data.get("final_total"),
-            data.get("tier"),
-            _now(),
-        ))
-
-
-def update_vision_score(listing_id: int, vision_score: float, final_total: float,
-                        condition_score: float, tier: str):
-    with transaction() as conn:
-        conn.execute("""
-            UPDATE listing_scores
-            SET vision_score=?, final_total=?, condition_score=?, tier=?
-            WHERE listing_id=?
-        """, (vision_score, final_total, condition_score, tier, listing_id))
-
-
-def set_alerted(score_id: int):
-    with transaction() as conn:
-        conn.execute(
-            "UPDATE listing_scores SET alerted_at=? WHERE id=?",
-            (_now(), score_id)
-        )
-
-
 # --- Query helpers for export ---
 
-def get_listings_with_scores(tier_filter: str | None = None) -> list[sqlite3.Row]:
+def get_listings() -> list[sqlite3.Row]:
     conn = get_connection()
-    base_q = """
-        SELECT l.*, s.hard_filter, s.price_score, s.commute_score, s.condition_score,
-               s.terms_score, s.trust_score, s.base_total, s.vision_score,
-               s.final_total, s.tier, s.alerted_at, s.scored_at, s.id as score_id,
-               p.post_url, p.group_url, p.scraped_at
+    rows = conn.execute("""
+        SELECT l.*, p.post_url, p.source, p.scraped_at
         FROM listings l
-        JOIN listing_scores s ON s.listing_id = l.id
         JOIN posts p ON p.id = l.post_ref
-    """
-    if tier_filter:
-        rows = conn.execute(base_q + " WHERE s.tier=? ORDER BY s.final_total DESC",
-                            (tier_filter,)).fetchall()
-    else:
-        rows = conn.execute(base_q + " WHERE s.tier != 'skip' ORDER BY s.final_total DESC").fetchall()
-    conn.close()
-    return rows
-
-
-def get_unalerted_above_tier(min_tier_order: int) -> list[sqlite3.Row]:
-    TIER_ORDER = ["skip", "maybe", "need_info", "shortlist", "must_call"]
-    tiers = [t for i, t in enumerate(TIER_ORDER) if i >= min_tier_order]
-    placeholders = ",".join("?" * len(tiers))
-    conn = get_connection()
-    rows = conn.execute(f"""
-        SELECT l.*, s.final_total, s.tier, s.alerted_at, s.id as score_id
-        FROM listings l
-        JOIN listing_scores s ON s.listing_id = l.id
-        WHERE s.tier IN ({placeholders}) AND s.alerted_at IS NULL
-    """, tiers).fetchall()
+        ORDER BY l.created_at DESC
+    """).fetchall()
     conn.close()
     return rows
 
@@ -466,7 +323,6 @@ def get_unalerted_above_tier(min_tier_order: int) -> list[sqlite3.Row]:
 def cleanup_old_posts(days: int):
     cutoff = f"-{int(days)} days"
     with transaction() as conn:
-        conn.execute("DELETE FROM listing_scores WHERE listing_id IN (SELECT id FROM listings WHERE post_ref IN (SELECT id FROM posts WHERE scraped_at < datetime('now', ?)))", (cutoff,))
         conn.execute("DELETE FROM listings WHERE post_ref IN (SELECT id FROM posts WHERE scraped_at < datetime('now', ?))", (cutoff,))
         conn.execute("DELETE FROM post_images WHERE post_ref IN (SELECT id FROM posts WHERE scraped_at < datetime('now', ?))", (cutoff,))
         conn.execute("DELETE FROM posts WHERE scraped_at < datetime('now', ?)", (cutoff,))
@@ -557,7 +413,7 @@ def upsert_ph_listing(watch_id: int, data: dict) -> tuple[int, bool, bool, bool,
     """
     with transaction() as conn:
         row = conn.execute(
-            "SELECT id, monthly_rent, prev_monthly_rent, muted_at FROM ph_listings "
+            "SELECT id, monthly_rent, prev_monthly_rent FROM ph_listings "
             "WHERE watch_id=? AND listing_id=?",
             (watch_id, data["listing_id"])
         ).fetchone()
@@ -571,7 +427,7 @@ def upsert_ph_listing(watch_id: int, data: dict) -> tuple[int, bool, bool, bool,
             )
             # Only overwrite prev_monthly_rent when price drops; keep old value on price rise
             prev_rent_to_save = old_rent if is_price_drop else row["prev_monthly_rent"]
-            is_muted = row["muted_at"] is not None
+            is_muted = False
 
             conn.execute("""
                 UPDATE ph_listings SET

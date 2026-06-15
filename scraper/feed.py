@@ -695,8 +695,6 @@ async def scrape_group(
     results = []
     seen_texts: set[str] = set()
     skipped_sale_only = 0
-    skipped_low_signal = 0
-    seeking_posts = 0
     fast_pass_count = 0
 
     try:
@@ -802,21 +800,9 @@ async def scrape_group(
                             post_text=text,
                         )
 
-                    # กรองเฉพาะเมนต์ที่มี listing signal
-                    listing_comments, dropped_comments = filter_listing_comments(raw_comments)
-
-                    if not listing_comments:
-                        skipped_low_signal += 1
-                        print(
-                            f"[post-skip] reason=seeking_no_listing_comments "
-                            f"raw_comments={len(raw_comments)} seen={len(seen_texts)}"
-                        )
-                        continue
-
                     print(
                         f"[post-seeking] post_id={post_id_val or 'unknown'} "
-                        f"raw_comments={len(raw_comments)} listing_comments={len(listing_comments)} "
-                        f"dropped_comments={len(dropped_comments)} "
+                        f"raw_comments={len(raw_comments)} "
                         f"accepted={len(results) + 1}"
                     )
                     results.append({
@@ -828,7 +814,7 @@ async def scrape_group(
                         "post_content_hash": _content_hash(text),
                         "image_urls": [],
                         "base64_images": [],
-                        "comments": listing_comments,
+                        "comments": raw_comments,
                         "status": "new",
                         "post_intent": "seeking",
                     })
@@ -898,7 +884,7 @@ async def scrape_group(
             f"[group-summary] url={group_url} "
             f"for_rent={for_rent_count} seeking={seeking_count} ambiguous={ambiguous_count} "
             f"fast_pass={fast_pass_count} "
-            f"skipped_sale={skipped_sale_only} skipped_low_signal={skipped_low_signal} "
+            f"skipped_sale={skipped_sale_only} "
             f"unique_seen={len(seen_texts)}"
         )
         await page.close()
