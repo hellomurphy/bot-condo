@@ -186,25 +186,6 @@
         <!-- scrollable cards area -->
         <div style="flex:1;overflow-y:auto;min-height:0;padding-right:2px;scrollbar-width:thin;scrollbar-color:var(--surface2) transparent">
 
-          <!-- Post URL checker -->
-          <div class="card" id="post-check-card">
-            <div class="section-label">ตรวจสอบ Post</div>
-            <div class="field" style="margin-bottom:8px">
-              <label>Facebook Post URL</label>
-              <input type="text" id="post-check-url"
-                     placeholder="https://www.facebook.com/groups/.../posts/..."/>
-            </div>
-            <button type="button" class="btn btn-outline" id="post-check-btn"
-                    style="font-size:.85rem;padding:9px 14px">
-              ตรวจสอบ
-            </button>
-            <div id="post-check-result" class="hidden"
-                 style="margin-top:10px;font-size:.83rem;line-height:1.6;
-                        padding:10px 12px;border-radius:var(--radius-sm);
-                        background:rgba(0,0,0,.3);border:1px solid var(--border)">
-            </div>
-          </div>
-
           <!-- FB Groups -->
           <div class="card">
             <div class="section-label">FB Groups</div>
@@ -920,50 +901,5 @@
     obs.observe(document.getElementById('run-section'), { attributes: true, attributeFilter: ['class'] });
   })();
 
-  /* ── Post URL checker ── */
-  document.getElementById('post-check-btn').addEventListener('click', async () => {
-    const url = document.getElementById('post-check-url').value.trim();
-    const resultBox = document.getElementById('post-check-result');
-    if (!url) return;
-
-    const btn = document.getElementById('post-check-btn');
-    btn.disabled = true;
-    btn.textContent = 'กำลังตรวจสอบ...';
-    resultBox.classList.add('hidden');
-
-    try {
-      const res = await fetch('/check_post', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      });
-      const d = await res.json();
-      if (!res.ok) {
-        const msg = d.error === 'no_credentials'
-          ? 'ยังไม่ได้ login Facebook — รัน python main.py --login ก่อน'
-          : d.error === 'invalid_url'
-          ? 'URL ไม่ถูกต้อง ต้องเป็น facebook.com'
-          : (d.error || 'เกิดข้อผิดพลาด');
-        resultBox.textContent = '⚠ ' + msg;
-        resultBox.style.color = '#F87171';
-      } else {
-        resultBox.innerHTML =
-          `<strong style="color:var(--accent)">${d.qualified}</strong> / ${d.total} คอมเมนต์ผ่านเกณฑ์`;
-        if (d.qualified > 0 && d.previews.length > 0) {
-          const escaped = d.previews.map(p => p.replace(/</g, '&lt;').replace(/>/g, '&gt;'));
-          resultBox.innerHTML +=
-            `<br><span style="color:var(--muted);font-size:.76rem">ตัวอย่าง: ${escaped.join(' · ')}</span>`;
-        }
-        resultBox.style.color = 'var(--text)';
-      }
-    } catch (_) {
-      resultBox.textContent = '⚠ Network error';
-      resultBox.style.color = '#F87171';
-    }
-
-    resultBox.classList.remove('hidden');
-    btn.disabled = false;
-    btn.textContent = 'ตรวจสอบ';
-  });
 </script>
 {% endblock %}

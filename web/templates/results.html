@@ -3,7 +3,7 @@
 
 {% block head %}
 <style>
-  /* ── Page header row ── */
+  /* ── Page header ── */
   .results-header {
     display: flex; justify-content: space-between; align-items: center;
     flex-wrap: wrap; gap: 8px; margin-top: 20px;
@@ -19,39 +19,15 @@
   /* ── Filter bar ── */
   .filter-bar {
     display: flex; align-items: center; gap: 8px;
-    margin-top: 16px; margin-bottom: 16px;
-    flex-wrap: nowrap; overflow-x: auto;
-    scrollbar-width: none;
+    margin-top: 16px; margin-bottom: 0;
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
   }
   .filter-bar::-webkit-scrollbar { display: none; }
-
-  /* Tier pill buttons */
-  .tier-pills {
-    display: flex; gap: 6px; flex-shrink: 0;
-  }
-  .tier-pill {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 6px 13px; border-radius: 20px;
-    font-size: .78rem; font-weight: 600; white-space: nowrap;
-    border: 1.5px solid var(--border);
-    background: var(--surface); color: var(--muted);
-    cursor: pointer; transition: all .15s;
-    user-select: none;
-  }
-  .tier-pill:hover { border-color: var(--accent); color: var(--accent); }
-  .tier-pill.active {
-    background: var(--accent); border-color: var(--accent);
-    color: #fff; box-shadow: 0 2px 8px rgba(79,70,229,.35);
-  }
-  .tier-pill .pill-dot {
-    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
-  }
 
   /* Expandable search */
   .search-wrap {
     margin-left: auto; flex-shrink: 0;
-    display: flex; align-items: center;
-    position: relative;
+    display: flex; align-items: center; position: relative;
   }
   .search-toggle {
     width: 36px; height: 36px; border-radius: 50%;
@@ -73,28 +49,95 @@
     transition: width .25s cubic-bezier(.4,0,.2,1), opacity .2s;
     outline: none;
   }
-  .search-input.open {
-    width: 200px; opacity: 1; pointer-events: auto;
+  .search-input.open { width: 220px; opacity: 1; pointer-events: auto; }
+
+  /* ── Advanced filter panel ── */
+  .filter-panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 14px 14px 10px;
+    margin-top: 10px; margin-bottom: 16px;
+    display: none;
   }
+  .filter-panel.open { display: block; }
+  .filter-panel-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 12px;
+  }
+  @media (max-width: 400px) {
+    .filter-panel-grid { grid-template-columns: 1fr; }
+  }
+  .filter-field label {
+    display: block; font-size: .72rem; font-weight: 600;
+    color: var(--muted); margin-bottom: 4px; letter-spacing: .03em;
+    text-transform: uppercase;
+  }
+  .filter-range {
+    display: flex; align-items: center; gap: 4px;
+  }
+  .filter-range input, .filter-field input {
+    width: 100%; min-width: 0;
+    height: 36px; border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background: var(--bg); color: var(--text);
+    font-size: .85rem; padding: 0 10px;
+    outline: none; transition: border-color .15s;
+    appearance: textfield; -moz-appearance: textfield;
+  }
+  .filter-range input { flex: 1; }
+  .filter-range input::-webkit-outer-spin-button,
+  .filter-range input::-webkit-inner-spin-button { appearance: none; -webkit-appearance: none; }
+  .filter-range input:focus, .filter-field input:focus {
+    border-color: var(--accent);
+  }
+  .filter-range-sep { color: var(--muted); font-size: .8rem; flex-shrink: 0; }
+  .filter-actions {
+    display: flex; justify-content: flex-end; gap: 8px;
+    margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
+  }
+  .filter-reset {
+    padding: 7px 14px; border-radius: 8px; font-size: .82rem; font-weight: 600;
+    background: none; border: 1.5px solid var(--border); color: var(--muted);
+    cursor: pointer; transition: border-color .15s, color .15s;
+  }
+  .filter-reset:hover { border-color: var(--accent); color: var(--accent); }
+  .filter-apply {
+    padding: 7px 18px; border-radius: 8px; font-size: .82rem; font-weight: 600;
+    background: var(--accent); color: #fff; border: none; cursor: pointer;
+    transition: background .15s;
+  }
+  .filter-apply:hover { background: var(--accent-h); }
+  .filter-toggle-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 7px 13px; border-radius: 20px; font-size: .82rem; font-weight: 600;
+    border: 1.5px solid var(--border); background: var(--surface); color: var(--muted);
+    cursor: pointer; transition: all .15s; flex-shrink: 0;
+  }
+  .filter-toggle-btn:hover, .filter-toggle-btn.active {
+    border-color: var(--accent); color: var(--accent);
+    background: rgba(79,70,229,.07);
+  }
+  .filter-toggle-btn .filter-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent); display: none;
+  }
+  .filter-toggle-btn.has-filter .filter-dot { display: inline-block; }
 
   /* ── Card grid ── */
   .card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 16px;
-    padding-bottom: 32px;
+    gap: 16px; padding-bottom: 32px;
   }
 
   /* ── Property card ── */
   .prop-card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 14px;
-    overflow: hidden;
+    border-radius: 14px; overflow: hidden;
     box-shadow: 0 2px 8px rgba(0,0,0,.08);
     transition: transform .18s, box-shadow .18s;
-    display: flex;
-    flex-direction: column;
+    display: flex; flex-direction: column;
   }
   .prop-card:hover {
     transform: translateY(-3px);
@@ -103,18 +146,12 @@
 
   /* ── Hero image ── */
   .prop-img-wrap {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 16/9;
-    background: #1a1a2e;
-    overflow: hidden;
+    position: relative; width: 100%; aspect-ratio: 16/9;
+    background: #1a1a2e; overflow: hidden;
   }
   .prop-img {
-    width: 100%; height: 100%;
-    object-fit: cover;
-    display: block;
-    opacity: 0;
-    transition: opacity .4s ease;
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    opacity: 0; transition: opacity .4s ease;
   }
   .prop-img.loaded { opacity: 1; }
   .prop-img-placeholder {
@@ -123,86 +160,48 @@
     font-size: 3rem; color: #444;
   }
 
-  /* ── Tier badge (overlay on image) ── */
-  .tier-overlay {
-    position: absolute; top: 10px; left: 10px;
-    padding: 4px 10px; border-radius: 20px;
-    font-size: .72rem; font-weight: 700; letter-spacing: .03em;
-    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255,255,255,.25);
-    text-shadow: 0 1px 2px rgba(0,0,0,.3);
-  }
-  .tier-overlay.t-must  { background: rgba(245,158,11,.82); color: #fff; }
-  .tier-overlay.t-short { background: rgba(34,197,94,.82);  color: #fff; }
-  .tier-overlay.t-info  { background: rgba(59,130,246,.82); color: #fff; }
-  .tier-overlay.t-restr { background: rgba(107,114,128,.82);color: #fff; }
-  .tier-overlay.t-maybe { background: rgba(30,30,50,.72);   color: rgba(255,255,255,.8); }
-
-  /* ── Worth badge (bottom of image) ── */
-  .worth-bar {
+  /* ── Rent overlay on image ── */
+  .rent-overlay-wrap {
     position: absolute; bottom: 0; left: 0; right: 0;
-    display: flex; align-items: center; justify-content: space-between;
     padding: 8px 12px;
     background: linear-gradient(to top, rgba(0,0,0,.75) 0%, transparent 100%);
+    display: flex; align-items: flex-end; justify-content: space-between;
   }
-  .worth-badge {
-    display: inline-flex; align-items: center; gap: 5px;
-    font-size: .78rem; font-weight: 700;
-    padding: 3px 9px; border-radius: 20px;
-    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-    border: 1px solid rgba(255,255,255,.2);
-  }
-  .worth-super  {
-    background: rgba(16,185,129,.25); color: #6ee7b7;
-    box-shadow: 0 0 10px rgba(16,185,129,.45);
-  }
-  .worth-good   { background: rgba(34,197,94,.2);  color: #86efac; }
-  .worth-ok     { background: rgba(59,130,246,.2); color: #93c5fd; }
-  .worth-low    { background: rgba(107,114,128,.2);color: #d1d5db; }
   .rent-overlay {
     font-size: 1.15rem; font-weight: 800; color: #fff;
-    text-shadow: 0 1px 4px rgba(0,0,0,.5);
-    letter-spacing: -.02em;
+    text-shadow: 0 1px 4px rgba(0,0,0,.5); letter-spacing: -.02em;
   }
   .rent-overlay .rent-unit { font-size: .7rem; font-weight: 500; opacity: .8; }
 
-  /* ── Score progress bar ── */
-  .score-section {
-    padding: 10px 14px 0;
-    display: flex; align-items: center; gap: 10px;
+  /* ── Status badge ── */
+  .status-badge {
+    display: inline-block; padding: 3px 9px; border-radius: 20px;
+    font-size: .72rem; font-weight: 700;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,.25);
   }
-  .score-track {
-    flex: 1; height: 6px; background: var(--border);
-    border-radius: 3px; overflow: hidden;
-  }
-  .score-fill {
-    height: 100%; border-radius: 3px;
-    transition: width .6s ease;
-  }
-  .score-fill.sf-super { background: linear-gradient(90deg, #10b981, #6ee7b7); }
-  .score-fill.sf-good  { background: linear-gradient(90deg, #22c55e, #86efac); }
-  .score-fill.sf-ok    { background: linear-gradient(90deg, #3b82f6, #93c5fd); }
-  .score-fill.sf-low   { background: var(--muted); }
-  .score-num {
-    font-size: .8rem; font-weight: 700; min-width: 28px;
-    text-align: right; color: var(--text);
-  }
+  .status-owner { background: rgba(34,197,94,.75); color: #fff; }
+  .status-agent { background: rgba(245,158,11,.75); color: #fff; }
+  .status-other { background: rgba(107,114,128,.6); color: #fff; }
 
   /* ── Info section ── */
   .prop-info {
-    padding: 10px 14px 12px;
-    flex: 1;
-    display: flex; flex-direction: column; gap: 4px;
+    padding: 10px 14px 12px; flex: 1;
+    display: flex; flex-direction: column; gap: 6px;
   }
   .prop-name {
-    font-size: 1rem; font-weight: 700; line-height: 1.3;
-    color: var(--text);
+    font-size: 1rem; font-weight: 700; line-height: 1.3; color: var(--text);
   }
   .prop-meta {
     font-size: .78rem; color: var(--muted);
     display: flex; flex-wrap: wrap; gap: 4px 10px;
   }
   .prop-meta span { display: inline-flex; align-items: center; gap: 3px; }
+  .prop-summary {
+    font-size: .8rem; color: var(--muted2);
+    line-height: 1.5; border-top: 1px solid var(--border);
+    padding-top: 6px; margin-top: 2px;
+  }
 
   /* ── Action row ── */
   .prop-actions {
@@ -211,17 +210,15 @@
     border-top: 1px solid var(--border);
   }
   .action-link {
-    flex: 1;
-    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    flex: 1; display: inline-flex; align-items: center;
+    justify-content: center; gap: 6px;
     padding: 8px 0; border-radius: 8px; font-size: .82rem; font-weight: 600;
     background: rgba(79,70,229,.1); color: var(--accent);
     text-decoration: none; transition: background .15s;
     border: 1px solid rgba(79,70,229,.2);
   }
   .action-link:hover { background: rgba(79,70,229,.18); text-decoration: none; }
-  .action-link.disabled {
-    opacity: .4; pointer-events: none; cursor: not-allowed;
-  }
+  .action-link.disabled { opacity: .4; pointer-events: none; cursor: not-allowed; }
   .delete-btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 5px;
     padding: 8px 12px; border-radius: 8px; font-size: .82rem; font-weight: 600;
@@ -232,16 +229,10 @@
   .delete-btn:hover { background: rgba(239,68,68,.15); }
   .delete-btn:disabled { opacity: .45; cursor: not-allowed; }
 
-  /* ── Empty state ── */
-  .empty-state {
-    text-align: center; padding: 64px 16px; color: var(--muted);
-  }
+  /* ── Empty / no-results ── */
+  .empty-state { text-align: center; padding: 64px 16px; color: var(--muted); }
   .empty-state .big { font-size: 3.5rem; margin-bottom: 16px; }
-
-  /* ── No-results banner ── */
-  .no-results-msg {
-    text-align: center; padding: 32px; color: var(--muted); font-size: .9rem;
-  }
+  .no-results-msg { text-align: center; padding: 32px; color: var(--muted); font-size: .9rem; }
 </style>
 {% endblock %}
 
@@ -259,25 +250,12 @@
 
 {% if rows %}
 <div class="filter-bar">
-  <div class="tier-pills">
-    <button class="tier-pill active" data-tier="" onclick="setTier(this)">All</button>
-    <button class="tier-pill" data-tier="must_call" onclick="setTier(this)">
-      <span class="pill-dot" style="background:#F59E0B"></span>Must Call
-    </button>
-    <button class="tier-pill" data-tier="shortlist" onclick="setTier(this)">
-      <span class="pill-dot" style="background:#22C55E"></span>Shortlist
-    </button>
-    <button class="tier-pill" data-tier="need_info" onclick="setTier(this)">
-      <span class="pill-dot" style="background:#3B82F6"></span>Need Info
-    </button>
-    <button class="tier-pill" data-tier="maybe" onclick="setTier(this)">
-      <span class="pill-dot" style="background:#9CA3AF"></span>Maybe
-    </button>
-  </div>
-
+  <button class="filter-toggle-btn" id="filter-toggle-btn" onclick="toggleFilterPanel()">
+    <span class="filter-dot"></span>⚙ Filter
+  </button>
   <div class="search-wrap">
     <input class="search-input" id="search-box" type="search"
-           placeholder="ค้นหา..." aria-label="Search listings"
+           placeholder="Search..." aria-label="Search listings"
            oninput="applyFilter()"/>
     <button class="search-toggle" id="search-toggle" onclick="toggleSearch()" aria-label="Search">
       🔍
@@ -285,54 +263,56 @@
   </div>
 </div>
 
+<div class="filter-panel" id="filter-panel">
+  <div class="filter-panel-grid">
+    <div class="filter-field">
+      <label>ราคาเช่า (฿/เดือน)</label>
+      <div class="filter-range">
+        <input type="number" id="f-rent-min" placeholder="ต่ำสุด" inputmode="numeric" oninput="applyFilter()">
+        <span class="filter-range-sep">–</span>
+        <input type="number" id="f-rent-max" placeholder="สูงสุด" inputmode="numeric" oninput="applyFilter()">
+      </div>
+    </div>
+    <div class="filter-field">
+      <label>ขนาดห้อง (ตร.ม.)</label>
+      <div class="filter-range">
+        <input type="number" id="f-size-min" placeholder="ต่ำสุด" inputmode="numeric" oninput="applyFilter()">
+        <span class="filter-range-sep">–</span>
+        <input type="number" id="f-size-max" placeholder="สูงสุด" inputmode="numeric" oninput="applyFilter()">
+      </div>
+    </div>
+    <div class="filter-field">
+      <label>ชั้นขั้นต่ำ</label>
+      <input type="number" id="f-floor-min" placeholder="เช่น 5" inputmode="numeric" oninput="applyFilter()">
+    </div>
+    <div class="filter-field">
+      <label>ค้นหา</label>
+      <input type="search" id="f-keyword" placeholder="ชื่อคอนโด, ทำเล…" oninput="applyFilter()">
+    </div>
+  </div>
+  <div class="filter-actions">
+    <button class="filter-reset" onclick="resetFilter()">ล้างค่า</button>
+  </div>
+</div>
+
 <div class="card-grid" id="card-grid">
   {% for row in rows %}
-  {% set tier = row.tier or 'maybe' %}
-  {% set score = row.final_total | int if row.final_total is not none else none %}
 
-  {# ── Score tier labels ── #}
-  {% if score is not none and score >= 80 %}
-    {% set worth_cls = 'worth-super' %}
-    {% set worth_label = '🔥 Super Worth' %}
-    {% set sf_cls = 'sf-super' %}
-  {% elif score is not none and score >= 65 %}
-    {% set worth_cls = 'worth-good' %}
-    {% set worth_label = '✓ Good Value' %}
-    {% set sf_cls = 'sf-good' %}
-  {% elif score is not none and score >= 50 %}
-    {% set worth_cls = 'worth-ok' %}
-    {% set worth_label = '~ Fair Deal' %}
-    {% set sf_cls = 'sf-ok' %}
+  {% set status_str = (row.status or '') | lower %}
+  {% if 'owner' in status_str %}
+    {% set status_cls = 'status-owner' %}
+  {% elif 'agent' in status_str %}
+    {% set status_cls = 'status-agent' %}
   {% else %}
-    {% set worth_cls = 'worth-low' %}
-    {% set worth_label = 'Low Score' %}
-    {% set sf_cls = 'sf-low' %}
-  {% endif %}
-
-  {# ── Tier overlay labels ── #}
-  {% if tier == 'must_call' %}
-    {% set tier_cls = 't-must' %}
-    {% set tier_label = '★ Must Call' %}
-  {% elif tier == 'shortlist' %}
-    {% set tier_cls = 't-short' %}
-    {% set tier_label = '✓ Shortlist' %}
-  {% elif tier == 'need_info' %}
-    {% if row.is_restricted_display %}
-      {% set tier_cls = 't-restr' %}
-      {% set tier_label = 'Restricted' %}
-    {% else %}
-      {% set tier_cls = 't-info' %}
-      {% set tier_label = 'ℹ Need Info' %}
-    {% endif %}
-  {% else %}
-    {% set tier_cls = 't-maybe' %}
-    {% set tier_label = 'Maybe' %}
+    {% set status_cls = 'status-other' %}
   {% endif %}
 
   <div class="prop-card"
        data-listing-id="{{ row.id }}"
-       data-tier="{{ tier }}"
-       data-search="{{ [row.condo_name, row.location_text, row.station_name, row.room_type] | join(' ') | lower }}">
+       data-search="{{ [row.condo_name, row.location_tags, row.room_type, row.status] | join(' ') | lower }}"
+       data-rent="{{ row.rent or 0 }}"
+       data-size="{{ row.size_sqm or 0 }}"
+       data-floor="{{ row.floor or 0 }}">
 
     <!-- Hero image -->
     <div class="prop-img-wrap">
@@ -347,43 +327,26 @@
       {% endif %}
       <div class="prop-img-placeholder" {% if row.first_image_url %}style="display:none"{% endif %}>🏠</div>
 
-      <!-- Tier badge top-left -->
-      <div class="tier-overlay {{ tier_cls }}">{{ tier_label }}</div>
-
-      <!-- Score badge + price bottom -->
-      <div class="worth-bar">
-        {% if score is not none %}
-          <span class="worth-badge {{ worth_cls }}">{{ worth_label }} ({{ score }}%)</span>
+      <div class="rent-overlay-wrap">
+        {% if row.status %}
+          <span class="status-badge {{ status_cls }}">{{ row.status[:30] }}</span>
         {% else %}
           <span></span>
         {% endif %}
-        {% if row.monthly_rent %}
+        {% if row.rent %}
           <span class="rent-overlay">
-            ฿{{ "{:,.0f}".format(row.monthly_rent) }}<span class="rent-unit">/mo</span>
+            ฿{{ "{:,.0f}".format(row.rent) }}<span class="rent-unit">/mo</span>
           </span>
         {% endif %}
       </div>
     </div>
 
-    <!-- Score bar -->
-    {% if score is not none %}
-    <div class="score-section">
-      <div class="score-track">
-        <div class="score-fill {{ sf_cls }}" style="width:{{ [score, 100] | min }}%"></div>
-      </div>
-      <div class="score-num">{{ score }}</div>
-    </div>
-    {% endif %}
-
     <!-- Info -->
     <div class="prop-info">
       <div class="prop-name">{{ row.condo_name or '(ไม่ระบุชื่อ)' }}</div>
       <div class="prop-meta">
-        {% if row.location_text %}
-          <span>📍 {{ row.location_text }}</span>
-        {% endif %}
-        {% if row.station_name %}
-          <span>🚇 {{ row.station_name }}</span>
+        {% if row.location_tags %}
+          <span>📍 {{ row.location_tags }}</span>
         {% endif %}
         {% if row.size_sqm %}
           <span>📏 {{ row.size_sqm }} sqm</span>
@@ -391,7 +354,16 @@
         {% if row.room_type %}
           <span>🛏 {{ row.room_type }}</span>
         {% endif %}
+        {% if row.floor %}
+          <span>🏢 ชั้น {{ row.floor }}</span>
+        {% endif %}
+        {% if row.move_in_cost %}
+          <span>💰 Move-in ฿{{ "{:,.0f}".format(row.move_in_cost) }}</span>
+        {% endif %}
       </div>
+      {% if row.summary and row.summary != '-' %}
+        <div class="prop-summary">{{ row.summary }}</div>
+      {% endif %}
     </div>
 
     <!-- Actions -->
@@ -413,22 +385,22 @@
 </div>
 
 <div id="no-results" class="no-results-msg hidden">
-  ไม่พบ listing ที่ตรงกับ filter
+  No listings match the search
 </div>
 
 {% else %}
 <div class="empty-state">
   <div class="big">🏠</div>
-  <div style="font-size:1.1rem;font-weight:700;margin-bottom:8px">ยังไม่มีผลลัพธ์</div>
-  <div class="muted">รัน scrape ก่อน แล้วกลับมาดูที่นี่</div>
+  <div style="font-size:1.1rem;font-weight:700;margin-bottom:8px">No results yet</div>
+  <div class="muted">Run a scrape first, then come back here</div>
   <div style="margin-top:20px">
-    <a href="/" class="btn btn-primary" style="width:auto;padding:10px 28px">ไปหน้า Scraper</a>
+    <a href="/" class="btn btn-primary" style="width:auto;padding:10px 28px">Go to Scraper</a>
   </div>
 </div>
 {% endif %}
 
 <script>
-  /* ── Lazy-load images with IntersectionObserver ── */
+  /* ── Lazy-load images ── */
   (function () {
     const imgs = document.querySelectorAll('img[data-src]');
     if (!imgs.length) return;
@@ -443,16 +415,7 @@
     imgs.forEach(img => io.observe(img));
   })();
 
-  /* ── Tier pills ── */
-  let activeTier = '';
-  function setTier(btn) {
-    activeTier = btn.dataset.tier;
-    document.querySelectorAll('.tier-pill').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    applyFilter();
-  }
-
-  /* ── Expandable search ── */
+  /* ── Expandable search (top bar) ── */
   let searchOpen = false;
   function toggleSearch() {
     searchOpen = !searchOpen;
@@ -460,54 +423,77 @@
     const toggle = document.getElementById('search-toggle');
     input.classList.toggle('open', searchOpen);
     toggle.classList.toggle('open', searchOpen);
-    if (searchOpen) {
-      input.focus();
-    } else {
-      input.value = '';
-      applyFilter();
-    }
+    if (searchOpen) { input.focus(); }
+    else { input.value = ''; applyFilter(); }
   }
-  /* Close search on Escape */
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && searchOpen) toggleSearch();
   });
 
-  /* ── Filter ── */
-  function applyFilter() {
-    const search = (document.getElementById('search-box')?.value || '').toLowerCase().trim();
-    const cards  = document.querySelectorAll('.prop-card');
-    let visible  = 0;
+  /* ── Filter panel toggle ── */
+  function toggleFilterPanel() {
+    const panel = document.getElementById('filter-panel');
+    const btn   = document.getElementById('filter-toggle-btn');
+    const open  = panel.classList.toggle('open');
+    btn.classList.toggle('active', open);
+  }
 
+  /* ── Reset all filters ── */
+  function resetFilter() {
+    ['f-rent-min','f-rent-max','f-size-min','f-size-max','f-floor-min','f-keyword'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    applyFilter();
+  }
+
+  /* ── Apply all filters ── */
+  function applyFilter() {
+    const keyword  = (document.getElementById('f-keyword')?.value || document.getElementById('search-box')?.value || '').toLowerCase().trim();
+    const rentMin  = parseFloat(document.getElementById('f-rent-min')?.value) || 0;
+    const rentMax  = parseFloat(document.getElementById('f-rent-max')?.value) || Infinity;
+    const sizeMin  = parseFloat(document.getElementById('f-size-min')?.value) || 0;
+    const sizeMax  = parseFloat(document.getElementById('f-size-max')?.value) || Infinity;
+    const floorMin = parseFloat(document.getElementById('f-floor-min')?.value) || 0;
+
+    const hasFilter = rentMin || rentMax < Infinity || sizeMin || sizeMax < Infinity || floorMin || keyword;
+    const btn = document.getElementById('filter-toggle-btn');
+    if (btn) btn.classList.toggle('has-filter', !!hasFilter);
+
+    const cards = document.querySelectorAll('.prop-card');
+    let visible = 0;
     cards.forEach(card => {
-      const matchTier   = !activeTier || card.dataset.tier === activeTier;
-      const matchSearch = !search || card.dataset.search.includes(search);
-      const show = matchTier && matchSearch;
-      card.style.display = show ? '' : 'none';
-      if (show) visible++;
+      const rent  = parseFloat(card.dataset.rent)  || 0;
+      const size  = parseFloat(card.dataset.size)  || 0;
+      const floor = parseFloat(card.dataset.floor) || 0;
+      const text  = card.dataset.search || '';
+
+      const ok = (!keyword || text.includes(keyword))
+        && (rent === 0 || (rent >= rentMin && rent <= rentMax))
+        && (size === 0 || (size >= sizeMin && size <= sizeMax))
+        && (floor === 0 || floor >= floorMin);
+
+      card.style.display = ok ? '' : 'none';
+      if (ok) visible++;
     });
 
     const noRes = document.getElementById('no-results');
     if (noRes) noRes.classList.toggle('hidden', visible > 0);
-
-    const countLabel = document.getElementById('count-label');
-    if (countLabel) countLabel.textContent = `${visible} listing${visible === 1 ? '' : 's'}`;
+    const label = document.getElementById('count-label');
+    if (label) label.textContent = `${visible} listing${visible === 1 ? '' : 's'}`;
   }
 
   /* ── Delete ── */
   async function deleteListing(listingId, btn) {
-    if (!window.confirm('ลบ listing นี้ออกจากผลลัพธ์?')) return;
-
+    if (!window.confirm('Delete this listing?')) return;
     btn.disabled = true;
     const orig = btn.innerHTML;
     btn.innerHTML = '…';
-
     try {
       const res  = await fetch(`/results/delete/${listingId}`, { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Delete failed');
-
-      const card = btn.closest('.prop-card');
-      card?.remove();
+      btn.closest('.prop-card')?.remove();
       applyFilter();
     } catch (err) {
       window.alert(err.message || 'Delete failed');
